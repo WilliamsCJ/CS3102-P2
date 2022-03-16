@@ -1,11 +1,12 @@
 // Copyright 2022 190010906
 //
-
+#include "RDT.h"
 #include "RdtSocket.h"
 #include "UdpSocket.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 
 /*
  * Function: configure_timeout
@@ -88,4 +89,24 @@ RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port) {
 void closeRdtSocket_t(RdtSocket_t* socket) {
   closeUdp(socket->local);
   closeUdp(socket->remote);
+  free(socket);
+}
+
+void recvRdt(const RdtSocket_t* socket, const RdtPacket_t* packet) {
+  UdpBuffer_t udpBuffer;
+  recvUdp(socket->local, socket->remote, &udpBuffer);
+  packet = (RdtPacket_t*) buffer.bytes;
+  /* TODO: add return value*/
+}
+
+void sendRdt(const RdtSocket_t* socket, const RdtPacket_t* packet, const uint8_t n) {
+  UdpBuffer_t buffer;
+  uint8_t bytes[n];
+
+  memcpy(bytes, packet, n);
+  buffer.bytes = bytes;
+  buffer.n = n;
+
+  sendUdp(socket->local, socket->remote, &buffer);
+  /* TODO: Check bytes sent. */
 }

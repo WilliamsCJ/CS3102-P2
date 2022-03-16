@@ -14,5 +14,21 @@ int main(int argc, char* argv[]) {
     return(-1);
   }
 
+  RdtHeader_t header = {
+          12,
+          1,
+          0,
+          0,
+          20
+  };
+
+  char buf[] = "Test";
+
+  RdtPacket_t packet = {header, &buf};
+
+  sendRdt(socket, const &packet);
+
+  closeRdtSocket_t(socket);
+
   return 0;
 }
