@@ -55,5 +55,5 @@ dkms.conf
 .idea/
 **/.DS_Store
 ~$*.docx
-RdtClient
-RdtServer
+**/RdtClient
+**/RdtServer
