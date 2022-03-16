@@ -74,8 +74,6 @@ RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port) {
   }
 
   return socket;
-
-  return socket;
 }
 
 
