@@ -10,10 +10,10 @@
 typedef struct RdtSocket_s {
   UdpSocket_t* local;
   UdpSocket_t* remote;
-  UdpSocket_t* receive;
+  UdpSocket_t receive;
 } RdtSocket_t;
 
-int setupRdtSocket_t(const char* hostname, const uint16_t port, RdtSocket_t* socket);
+RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port);
 
 #endif  // SRC_RDTSOCKET_H_
 

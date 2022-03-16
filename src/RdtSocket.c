@@ -4,6 +4,7 @@
 #include "RdtSocket.h"
 #include "UdpSocket.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 /*
@@ -40,28 +41,40 @@ int configure_timeout(RdtSocket_t* socket) {
  * returns: void
  *
  */
-int setupRdtSocket_t(const char* hostname, const uint16_t port, RdtSocket_t* socket) {
+RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port) {
+  RdtSocket_t* socket = (RdtSocket_t*) calloc(1, sizeof(RdtSocket_t));
+  int error = 0;
+
   /* setup local UDP socket */
-  socket->local = setupUdpSocket_t((char *) 0, port);
+  socket.local = setupUdpSocket_t((char *) 0, port);
   if (socket->local == (UdpSocket_t *) 0) {
     perror("Couldn't setup local UDP socket");
-    return(-1);
+    error = 1;
   }
 
   /* setup remote UDP socket */
   socket->remote = setupUdpSocket_t(hostname, port);
   if (socket->remote == (UdpSocket_t *) 0) {
     perror("Couldn't setup remote UDP socket");
-    return(-1);
+    error = 1;
   }
 
   /* open local UDP socket */
   if (openUdp(socket->local) < 0) {
     perror("Couldn't open UDP socket");
-    return(-1);
+    error = 1;
   }
 
-  return configure_timeout(socket);
+  configure_timeout(socket)
+
+  if (error) {
+    free(socket);
+    socket = (RdtSocket_t *) 0;
+  }
+
+  return socket;
+
+  return socket;
 }
 
 

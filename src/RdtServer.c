@@ -5,11 +5,11 @@
 #include <stdio.h>
 
 int main(int argc, char* argv[]) {
-  RdtSocket_t* socket;
-
   int port = atoi(argv[2]);
 
-  if (setupRdtSocket_t(argv[1], port, socket) < 0) {
+  RdtSocket_t* socket = setupRdtSocket_t(argv[1], port);
+
+  if (socket < 0) {
     perror("Couldn't setup RDT socket");
     return(-1);
   }
