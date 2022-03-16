@@ -2,7 +2,7 @@
 
 CC		=clang
 #CC	=gcc
-CC-flags		=-Wall #-g
+CC-flags		=-Wall -g
 
 LIB-files = UdpSocket.o RdtSocket.o
 
