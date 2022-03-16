@@ -100,7 +100,8 @@ void recvRdt(const RdtSocket_t* socket, RdtPacket_t* packet) {
 void recvRdtAlt(UdpSocket_t* local, UdpSocket_t* receive, RdtPacket_t* packet) {
   UdpBuffer_t udpBuffer;
   recvUdp(local, receive, &udpBuffer);
-  memcpy(packet, udpBuffer.bytes, sizeof(RdtPacket_t));
+  printf("Received %d\n", udpBuffer.n);
+  memcpy(packet, udpBuffer.bytes, udpBuffer.n);
   /* TODO: add return value*/
 }
 
