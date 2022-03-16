@@ -5,13 +5,15 @@
 #define SRC_RDTSOCKET_H_
 
 #include <inttypes.h>
-#include <netinet/in.h>
+#include "UdpSocket.h"
 
 typedef struct RdtSocket_s {
-  int sd;
-  struct sockaddr_in addr;
+  UdpSocket_t* local;
+  UdpSocket_t* remote;
+  UdpSocket_t* receive;
 } RdtSocket_t;
 
-RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint64_t port);
+int setupRdtSocket_t(const char* hostname, const uint16_t port, RdtSocket_t* socket);
 
 #endif  // SRC_RDTSOCKET_H_
+
