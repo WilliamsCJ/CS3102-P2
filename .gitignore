@@ -54,3 +54,4 @@ dkms.conf
 # Miscellaneous
 .idea/
 **/.DS_Store
+~$*.docx
