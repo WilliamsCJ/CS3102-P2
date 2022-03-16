@@ -16,7 +16,6 @@
 void perror(const char *s); // TODO: Do we need this?
 
 /* signal action / handler hook */
-struct sigaction G_sigio;
 RdtSocket_t* G_socket;
 UdpSocket_t receive;
 int port = 21984;
