@@ -17,7 +17,10 @@ int main(int argc, char* argv[]) {
 
   RdtPacket_t packet;
 
-  recvRdt(socket, &packet);
+  UdpSocket_t* local;
+  UdpSocket_t receive;
+
+  recvRdtAlt(socket->local, &receive, &packet);
 
   printf("Seq no: %d\n", packet.header.sequence);
 

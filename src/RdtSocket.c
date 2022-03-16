@@ -94,7 +94,14 @@ void closeRdtSocket_t(RdtSocket_t* socket) {
 
 void recvRdt(const RdtSocket_t* socket, RdtPacket_t* packet) {
   UdpBuffer_t udpBuffer;
-  recvUdp(socket->local, socket->remote, &udpBuffer);
+  recvUdp(socket->local, &(socket->receive), &udpBuffer);
+  memcpy(packet, udpBuffer.bytes, sizeof(RdtPacket_t));
+  /* TODO: add return value*/
+}
+
+void recvRdtAlt(UdpSocket_t* local, UdpSocket_t* receive, RdtPacket_t* packet) {
+  UdpBuffer_t udpBuffer;
+  recvUdp(local, receive, &udpBuffer);
   memcpy(packet, udpBuffer.bytes, sizeof(RdtPacket_t));
   /* TODO: add return value*/
 }
