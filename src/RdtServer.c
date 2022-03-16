@@ -17,7 +17,7 @@ int main(int argc, char* argv[]) {
 
   RdtPacket_t packet;
 
-  recvRdt(socket, const &packet);
+  recvRdt(socket, &packet);
 
   printf("Seq no: %d\n", packet.header.sequence);
 

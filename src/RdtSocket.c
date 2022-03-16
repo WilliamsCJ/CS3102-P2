@@ -47,7 +47,7 @@ RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port) {
   int error = 0;
 
   /* setup local UDP socket */
-  socket.local = setupUdpSocket_t((char *) 0, port);
+  socket->local = setupUdpSocket_t((char *) 0, port);
   if (socket->local == (UdpSocket_t *) 0) {
     perror("Couldn't setup local UDP socket");
     error = 1;
@@ -66,7 +66,7 @@ RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port) {
     error = 1;
   }
 
-  configure_timeout(socket)
+  configure_timeout(socket);
 
   if (error) {
     free(socket);
@@ -92,10 +92,10 @@ void closeRdtSocket_t(RdtSocket_t* socket) {
   free(socket);
 }
 
-void recvRdt(const RdtSocket_t* socket, const RdtPacket_t* packet) {
+void recvRdt(const RdtSocket_t* socket, RdtPacket_t* packet) {
   UdpBuffer_t udpBuffer;
   recvUdp(socket->local, socket->remote, &udpBuffer);
-  packet = (RdtPacket_t*) buffer.bytes;
+  memcpy(packet, udpBuffer.bytes, sizeof(RdtPacket_t));
   /* TODO: add return value*/
 }
 

@@ -6,6 +6,7 @@
 
 #include <inttypes.h>
 #include "UdpSocket.h"
+#include "RDT.h"
 
 typedef struct RdtSocket_s {
   UdpSocket_t* local;
@@ -17,7 +18,7 @@ RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port);
 
 void closeRdtSocket_t(RdtSocket_t* socket);
 
-void recvRdt(const RdtSocket_t* socket, const RdtPacket_t* packet);
+void recvRdt(const RdtSocket_t* socket, RdtPacket_t* packet);
 
 void sendRdt(const RdtSocket_t* socket, const RdtPacket_t* packet, const uint8_t n);
 

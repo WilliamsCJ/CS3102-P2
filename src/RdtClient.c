@@ -3,6 +3,7 @@
 #include "RdtSocket.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 int main(int argc, char* argv[]) {
   int port = atoi(argv[2]);
@@ -22,11 +23,10 @@ int main(int argc, char* argv[]) {
           20
   };
 
-  char buf[] = "Test";
+  RdtPacket_t packet;
+  packet.header = header;
 
-  RdtPacket_t packet = {header, &buf};
-
-  sendRdt(socket, const &packet);
+  sendRdt(socket, &packet, sizeof(RdtHeader_t));
 
   closeRdtSocket_t(socket);
 
