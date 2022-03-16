@@ -16,7 +16,6 @@ typedef struct RdtHeader_s {
 
 typedef struct RdtPacket_s {
     RdtHeader_t header;
-    uint8_t* data;
 } RdtPacket_t;
 
 typedef struct RdtBuffer_s {
