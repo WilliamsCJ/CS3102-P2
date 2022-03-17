@@ -18,12 +18,14 @@ RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port);
 
 void closeRdtSocket_t(RdtSocket_t* socket);
 
+/*
 void recvRdt(const RdtSocket_t* socket, RdtPacket_t* packet);
+*/
 
-void recvRdtAlt(UdpSocket_t* local, UdpSocket_t* receive, RdtPacket_t* packet);
+void recvRdtAlt(UdpSocket_t* local, RdtPacket_t* packet);
 
 
-void sendRdt(const RdtSocket_t* socket, const RdtPacket_t* packet, const uint8_t n);
+void sendRdt(const RdtSocket_t* socket, const uint8_t n);
 
 #endif  // SRC_RDTSOCKET_H_
 
