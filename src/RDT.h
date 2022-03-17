@@ -6,11 +6,26 @@
 
 #include <inttypes.h>
 
+#define DATA    0
+#define ACK     1
+#define SYN     2
+#define SYNACK  3
+#define FIN     4
+#define FINACK  5
+
+typedef enum {
+    CLOSED      = 0;
+    LISTEN      = 1;
+    SYN_SENT    = 2;
+    SYN_RCVD    = 3;
+    ESTABLISHED = 4;
+    FIN_SENT    = 5;
+    FIN_RCVD    = 6;
+} FSM;
+
 typedef struct RdtHeader_s {
     uint8_t sequence;
-    uint8_t f_syn;
-    uint8_t f_ack;
-    uint8_t f_fin;
+    uint8_t flag;
     uint16_t checksum;
 } RdtHeader_t;
 
