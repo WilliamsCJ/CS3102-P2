@@ -13,13 +13,14 @@
 #include "sigio.h"
 #include "UdpSocket.h"
 
-void perror(const char *s); // TODO: Do we need this?
-
-/* signal action / handler hook */
 RdtSocket_t* G_socket;
 UdpSocket_t receive;
-int port = 21984;
+int G_port;
 
+RdtSocket_t* G_socket;
+
+UdpSocket_t* G_local;
+UdpSocket_t G_receive;
 
 /*
  * Function: handleSIGIO
@@ -39,9 +40,10 @@ void handleSIGIO(int sig) {
     sigprocmask(SIG_BLOCK, &G_sigmask, (sigset_t *) 0);
 
     /* call the function passed */
-    RdtPacket_t packet;
-    recvRdtAlt(G_socket->local, &receive, &packet);
-    printf("Seq no: %d\n", packet.header.sequence);
+    /* TODO: Move packet creation elsewhere? */
+    RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
+    recvRdt(G_socket, packet);
+    printf("Seq no. %d\n", packet->header.sequence);
 
     /* allow the signals to be delivered */
     sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);
@@ -52,20 +54,15 @@ void handleSIGIO(int sig) {
   }
 }
 
-
-
 int main(int argc, char* argv[]) {
-/*
-  int port = atoi(argv[2]);
-*/
+  int error = 0;
+  /* TODO: Args parsing */
 
-  G_socket = setupRdtSocket_t(argv[1], port);
-  setupSIGIO(G_socket->local->sd,handleSIGIO);
+  /* Set up port and sockets */
+  G_port = getuid();
+  G_socket = setupRdtSocket_t(argv[1], G_port);
 
-  if (G_socket < 0) {
-    perror("Couldn't setup RDT socket");
-    return(-1);
-  }
+  setupSIGIO(G_socket->local->sd, handleSIGIO);
 
   while(1) {
     (void) pause(); // Wait for signal

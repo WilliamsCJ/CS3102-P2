@@ -6,6 +6,8 @@
 
 #include <inttypes.h>
 
+#define RDT_MAX_SIZE 20
+
 typedef struct RdtHeader_s {
     uint8_t sequence;
     uint8_t f_syn;

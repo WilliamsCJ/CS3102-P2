@@ -66,7 +66,7 @@ RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port) {
     error = 1;
   }
 
-  configure_timeout(socket);
+//  configure_timeout(socket);
 
   if (error) {
     free(socket);
@@ -96,37 +96,44 @@ void closeRdtSocket_t(RdtSocket_t* socket) {
   *//* TODO: add return value*//*
 }*/
 
-void recvRdtAlt(UdpSocket_t* local, RdtPacket_t* packet) {
+void recvRdt(RdtSocket_t* socket, RdtPacket_t* packet) {
   UdpBuffer_t buffer;
+  uint8_t bytes[RDT_MAX_SIZE];
   int r, error = 0;
   UdpSocket_t receive;
 
-  r = recvUdp(local, &receive, &buffer);
+  buffer.bytes = bytes;
+  buffer.n = RDT_MAX_SIZE;
+
+  /* Receive UDP packets */
+  r = recvUdp(socket->local, &(socket->receive), &buffer);
   if (r < 0) {
     perror("Couldn't receive RDT packet");
     error = 1;
     return;
   }
 
-  printf("Received %d / %d\n", buffer.n, r);
-  memcpy(packet, buffer.bytes, buffer.n);
+  /* Cast bytes to RdtPacket_t */
+  memcpy(packet, buffer.bytes, r);
+
   /* TODO: add return value*/
 }
 
 void sendRdt(const RdtSocket_t* socket, const uint8_t n) {
-  RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtSocket_t));
+  RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
   UdpBuffer_t buffer;
   int r;
 
   packet->header.sequence = 11;
   packet->header.f_fin = 1;
 
-  uint8_t bytes[sizeof(RdtSocket_t)];
-  memcpy(bytes, packet, sizeof(RdtSocket_t));
-  buffer.n = sizeof(RdtSocket_t);
+  uint8_t bytes[sizeof(RdtPacket_t)];
+  memcpy(bytes, packet, sizeof(RdtPacket_t));
+  buffer.n = sizeof(RdtPacket_t);
   buffer.bytes = bytes;
 
   r = sendUdp(socket->local, socket->remote, &buffer);
+  printf("Sizeof: %lu\n", sizeof(RdtHeader_t));
   printf("Bytes sent %d\n", r);
   /* TODO: Check bytes sent. */
   free(packet);
