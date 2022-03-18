@@ -1,7 +1,6 @@
 // Copyright 2022 190010906
 //
 #include "RdtSocket.h"
-#include "RDT.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include "sigio.h"
@@ -13,14 +12,10 @@
 #include "sigio.h"
 #include "UdpSocket.h"
 
-RdtSocket_t* G_socket;
-UdpSocket_t receive;
 int G_port;
-
+int G_state = RDT_STATE_LISTEN;
+int G_flag;
 RdtSocket_t* G_socket;
-
-UdpSocket_t* G_local;
-UdpSocket_t G_receive;
 
 /*
  * Function: handleSIGIO
@@ -42,8 +37,9 @@ void handleSIGIO(int sig) {
     /* call the function passed */
     /* TODO: Move packet creation elsewhere? */
     RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
-    recvRdt(G_socket, packet);
-    printf("Seq no. %d\n", packet->header.sequence);
+    recvRdtPacket(G_socket, packet);
+    int input = RdtTypeTypeToRdtEvent(packet->header.type);
+    fsm(input, G_socket);
 
     /* allow the signals to be delivered */
     sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);
@@ -64,7 +60,7 @@ int main(int argc, char* argv[]) {
 
   setupSIGIO(G_socket->local->sd, handleSIGIO);
 
-  while(1) {
+  while(G_state != RDT_STATE_CLOSED   ) {
     (void) pause(); // Wait for signal
   }
 

@@ -4,31 +4,64 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include "sigio.h"
 
-int main(int argc, char* argv[]) {
-  int port = atoi(argv[2]);
+int G_port;
+int G_state = RDT_STATE_CLOSED;
+int G_flag;
+RdtSocket_t* G_socket;
 
-  RdtSocket_t* socket = setupRdtSocket_t(argv[1], port);
+void handleSIGIO(int sig) {
+  if (sig == SIGIO) {
+    /* protect the network and keyboard reads from signals */
+    sigprocmask(SIG_BLOCK, &G_sigmask, (sigset_t *) 0);
 
-  if (socket < 0) {
-    perror("Couldn't setup RDT socket");
-    return(-1);
+    /* call the function passed */
+    /* TODO: Move packet creation elsewhere? */
+    RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
+    recvRdtPacket(G_socket, packet);
+    int input = RdtTypeTypeToRdtEvent(packet->header.type);
+    fsm(input, G_socket);
+
+    /* allow the signals to be delivered */
+    sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);
+  }
+  else {
+    perror("handleSIGIO(): got a bad signal number");
+    exit(1);
+  }
+}
+
+void rdtSend(RdtSocket_t* socket) {
+  int seq_no = 0;
+
+  /* Setup SIGIO to handle network events. */
+  setupSIGIO(socket->local->sd, handleSIGIO);
+
+  // TODO: Sync
+  fsm(RDT_INPUT_ACTIVE_OPEN, socket);
+
+  printf("%d\n", G_state);
+
+  while(G_state != RDT_STATE_CLOSED) {
+    (void) pause(); // Wait for signal
   }
 
-  RdtHeader_t header = {
-          12,
-          1,
-          0,
-          0,
-          20
-  };
+  // Close
+}
 
-  RdtPacket_t packet;
-  packet.header = header;
+int main(int argc, char* argv[]) {
+  G_port = getuid();
 
-  sendRdt(socket, &packet, sizeof(RdtHeader_t));
+  G_socket = openRdtClient(argv[1], G_port);
+  if (G_socket < 0 ) {
+    exit(-1);
+  }
 
-  closeRdtSocket_t(socket);
+  rdtSend(G_socket);
+
+  closeRdtSocket_t(G_socket);
 
   return 0;
 }
