@@ -7,7 +7,6 @@
 #include <sys/time.h>
 
 #include "sigalrm.h"
-#include "udp_probe.h"
 
 /* signal action / handler hook */
 struct sigaction G_sigalrm;
@@ -19,51 +18,21 @@ struct itimerval G_timer;
 /*
  * Function: setITIMER
  * --------------------
- * Copied from timer.c:
+ * Modified from setITIMER from timer.c:
  *
  * saleem, Jan2022
  * saleem, Jan2021
  * saleem, Jan2004
  * saleem, Nov2002
  */
-void setITIMER(unsigned int sec, unsigned int usec) {
-  G_timer.it_interval.tv_sec = sec;
-  G_timer.it_interval.tv_usec = usec;
+int setITIMER(unsigned int sec, unsigned int usec) {
+  G_timer.it_interval.tv_sec = 0;
+  G_timer.it_interval.tv_usec = 0;
   G_timer.it_value.tv_sec = sec;
   G_timer.it_value.tv_usec = usec;
-  if (setitimer(ITIMER_REAL, &G_timer, (struct itimerval *) 0) != 0) {
-    perror("setITIMER(): setitimer() problem");
-  }
+
+  return setitimer(ITIMER_REAL, &G_timer, (struct itimerval *) 0);
 }
-
-
-/*
- * Function: handleSIGALARM
- * ------------------------
- * Copied from timer.c:
- *
- * saleem, Jan2022
- * saleem, Jan2021
- * saleem, Jan2004
- * saleem, Nov2002
- */
-void handleSIGALRM(int sig) {
-  if (sig == SIGALRM) {
-    /* protect handler actions from signals */
-    sigprocmask(SIG_BLOCK, &G_sigmask, (sigset_t *) 0);
-
-    /* Send a packet */
-    send_probe();
-
-    /* protect handler actions from signals */
-    sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);
-  }
-  else {
-    perror("handleSIGALRM() got a bad signal");
-    exit(1);
-  }
-}
-
 
 /*
  * Function: setupSIGALARM
@@ -75,17 +44,15 @@ void handleSIGALRM(int sig) {
  * saleem, Jan2004
  * saleem, Nov2002
  */
-void setupSIGALRM() {
+void setupSIGALRM(void(*handler)(int)) {
   sigaddset(&G_sigmask, SIGALRM);
 
-  G_sigalrm.sa_handler = handleSIGALRM;
+  G_sigalrm.sa_handler = handler;
   G_sigalrm.sa_flags = 0;
 
+  /* TODO: Change error handling */
   if (sigaction(SIGALRM, &G_sigalrm, (struct sigaction *) 0) < 0) {
     perror("setupSIGALRM(): sigaction() problem");
     exit(0);
-  }
-  else {
-    setITIMER(G_ITIMER_S, G_ITIMER_US);
   }
 }

@@ -6,6 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "sigio.h"
+#include "sigalrm.h"
 
 int G_port;
 int G_state = RDT_STATE_CLOSED;
@@ -33,16 +34,41 @@ void handleSIGIO(int sig) {
   }
 }
 
+/*
+ * Function: handleSIGALARM
+ * ------------------------
+ * Copied from timer.c:
+ *
+ * saleem, Jan2022
+ * saleem, Jan2021
+ * saleem, Jan2004
+ * saleem, Nov2002
+ */
+void handleSIGALRM(int sig) {
+  if (sig == SIGALRM) {
+    /* protect handler actions from signals */
+    sigprocmask(SIG_BLOCK, &G_sigmask, (sigset_t *) 0);
+
+    /* Send a packet */
+    fsm(RDT_EVENT_TIMEOUT_2MSL, G_socket);
+
+    /* protect handler actions from signals */
+    sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);
+  }
+  else {
+    perror("handleSIGALRM() got a bad signal");
+    exit(1);
+  }
+}
+
 void rdtSend(RdtSocket_t* socket) {
   int seq_no = 0;
 
   /* Setup SIGIO to handle network events. */
   setupSIGIO(socket->local->sd, handleSIGIO);
+  setupSIGALRM(handleSIGALRM);
 
-  // TODO: Sync
   fsm(RDT_INPUT_ACTIVE_OPEN, socket);
-
-  printf("%d\n", G_state);
 
   while(G_state != RDT_STATE_CLOSED) {
     (void) pause(); // Wait for signal

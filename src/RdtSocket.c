@@ -2,34 +2,15 @@
 //
 #include "RdtSocket.h"
 #include "UdpSocket.h"
+#include "sigalrm.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 
-int fsm(int input, RdtSocket_t* socket);
+int G_retries = 0;
 
-/*
- * Function: configure_timeout
- * ---------------------------
- * Configures the timeout for the local UDP socket.
- * Enables the program to handle dropped packets.
- *
- * returns: void
- */
-int configure_timeout(RdtSocket_t* socket) {
-  // Modified from: https://stackoverflow.com/questions/13547721/udp-socket-set-timeout
-  // CITATION START
-  struct timeval tv;
-  tv.tv_sec = 1;
-  tv.tv_usec = 0;
-  if (setsockopt(socket->local->sd, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0) {
-    perror("Couldn't set socket options");
-    return(-1);
-  }
-  // CITATION END
-  return 0;
-}
+int fsm(int input, RdtSocket_t* socket);
 
 // TODO: Docstring
 RdtSocket_t* openRdtClient(const char* hostname, const uint16_t port) {
@@ -153,9 +134,13 @@ int fsm(int input, RdtSocket_t* socket) {
           packet->header.type = SYN;
 
           sendRdtPacket(socket, packet, sizeof(RdtPacket_t));
+          if (setITIMER(0, RDT_TIMEOUT_200MS) != 0) {
+            perror("Couldn't set timeout");
+            return -1;
+          }
+
           G_state = RDT_STATE_SYN_SENT;
           free(packet);
-
           return 0;
         }
         case RDT_INPUT_PASSIVE_OPEN:
@@ -181,8 +166,15 @@ int fsm(int input, RdtSocket_t* socket) {
           packet->header.type = FIN;
 
           sendRdtPacket(socket, packet, sizeof(RdtPacket_t));
+          G_retries = 0;
           G_state = RDT_STATE_FIN_SENT;
           free(packet);
+          return 0;
+        }
+        case RDT_EVENT_TIMEOUT_2MSL: {
+          G_state = RDT_STATE_CLOSED;
+          G_retries++;
+          fsm(RDT_INPUT_ACTIVE_OPEN, socket);
           return 0;
         }
       }
@@ -204,6 +196,8 @@ int fsm(int input, RdtSocket_t* socket) {
       };
     default:
       printf("ERROR\n");
+      printf("%s\n", fsm_strings[G_state]);
+      printf("%s\n", fsm_strings[input]);
       G_state = RDT_INVALID;
   }
   return -1;
