@@ -4,13 +4,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "sigio.h"
-#include <fcntl.h>
 #include <signal.h>
-#include <stdlib.h>
 #include <unistd.h>
 
 #include "sigio.h"
-#include "UdpSocket.h"
+#include "sigalrm.h"
 
 int G_port;
 int G_state = RDT_STATE_LISTEN;
@@ -50,6 +48,33 @@ void handleSIGIO(int sig) {
   }
 }
 
+/*
+ * Function: handleSIGALARM
+ * ------------------------
+ * Copied from timer.c:
+ *
+ * saleem, Jan2022
+ * saleem, Jan2021
+ * saleem, Jan2004
+ * saleem, Nov2002
+ */
+void handleSIGALRM(int sig) {
+  if (sig == SIGALRM) {
+    /* protect handler actions from signals */
+    sigprocmask(SIG_BLOCK, &G_sigmask, (sigset_t *) 0);
+
+    /* Send a packet */
+    fsm(RDT_EVENT_TIMEOUT_2MSL, G_socket);
+
+    /* protect handler actions from signals */
+    sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);
+  }
+  else {
+    perror("handleSIGALRM() got a bad signal");
+    exit(1);
+  }
+}
+
 int main(int argc, char* argv[]) {
   int error = 0;
   /* TODO: Args parsing */
@@ -59,6 +84,7 @@ int main(int argc, char* argv[]) {
   G_socket = setupRdtSocket_t(argv[1], G_port);
 
   setupSIGIO(G_socket->local->sd, handleSIGIO);
+  setupSIGALRM(handleSIGALRM);
 
   while(G_state != RDT_STATE_CLOSED   ) {
     (void) pause(); // Wait for signal
