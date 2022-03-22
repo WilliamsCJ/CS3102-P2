@@ -6,6 +6,7 @@
 #include "sigio.h"
 #include <signal.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "sigio.h"
 #include "sigalrm.h"
@@ -14,6 +15,8 @@ int G_port;
 int G_state = RDT_STATE_LISTEN;
 int G_flag;
 RdtSocket_t* G_socket;
+uint8_t* G_buf;
+uint8_t G_buf_size;
 
 /*
  * Function: handleSIGIO
@@ -36,8 +39,19 @@ void handleSIGIO(int sig) {
     /* TODO: Move packet creation elsewhere? */
     RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
     recvRdtPacket(G_socket, packet);
+
+    char* buf;
+
     int input = RdtTypeTypeToRdtEvent(packet->header.type);
     fsm(input, G_socket);
+
+    if (input == RDT_EVENT_RCV_DATA) {
+      printf("SEQ: %d\n", packet->header.sequence);
+      printf("Type: %d\n", packet->header.type);
+      strcpy(packet->data, buf);
+
+      printf("%s\n", buf);
+    }
 
     /* allow the signals to be delivered */
     sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);

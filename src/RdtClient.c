@@ -12,6 +12,8 @@ int G_port;
 int G_state = RDT_STATE_CLOSED;
 int G_flag;
 RdtSocket_t* G_socket;
+uint8_t* G_buf;
+uint8_t G_buf_size;
 
 void handleSIGIO(int sig) {
   if (sig == SIGIO) {
@@ -61,19 +63,27 @@ void handleSIGALRM(int sig) {
   }
 }
 
-void rdtSend(RdtSocket_t* socket) {
-  int seq_no = 0;
-
+void rdtOpen(RdtSocket_t* socket) {
   /* Setup SIGIO to handle network events. */
   setupSIGIO(socket->local->sd, handleSIGIO);
   setupSIGALRM(handleSIGALRM);
 
   fsm(RDT_INPUT_ACTIVE_OPEN, socket);
 
-  while(G_state != RDT_STATE_CLOSED) {
+  while(G_state != RDT_STATE_ESTABLISHED) {
     (void) pause(); // Wait for signal
   }
+}
 
+void rdtSend(RdtSocket_t* socket, const void* buf, int n) {
+  int seq_no = 0;
+
+  G_buf = (uint8_t*) buf;
+  fsm(RDT_INPUT_SEND, socket);
+
+  while(G_state != RDT_STATE_ESTABLISHED) {
+    (void) pause(); // Wait for signal
+  }
   // Close
 }
 
@@ -85,7 +95,10 @@ int main(int argc, char* argv[]) {
     exit(-1);
   }
 
-  rdtSend(G_socket);
+  char data[] = "Hello World";
+
+  rdtOpen(G_socket);
+  rdtSend(G_socket, &data, sizeof(data));
 
   closeRdtSocket_t(G_socket);
 

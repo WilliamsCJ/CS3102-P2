@@ -39,10 +39,13 @@
 #define RDT_STATE_SYN_SENT        ((int) 20)
 #define RDT_STATE_SYN_RCVD        ((int) 21)
 #define RDT_STATE_ESTABLISHED     ((int) 22)
-#define RDT_STATE_FIN_SENT        ((int) 23)
-#define RDT_STATE_FIN_RCV         ((int) 24)
+#define RDT_STATE_DATA_SENT       ((int) 23)
+#define RDT_STATE_FIN_SENT        ((int) 24)
+#define RDT_STATE_FIN_RCV         ((int) 25)
 
 extern int G_state;
+extern uint8_t* G_buf;
+extern uint8_t G_buf_size;
 
 static const char* fsm_strings[] = {
     "---",
@@ -90,6 +93,7 @@ typedef struct RdtHeader_s {
 
 typedef struct RdtPacket_s {
   RdtHeader_t header;
+  uint8_t     data;  /* TODO: Should this be const */
 } RdtPacket_t;
 
 typedef struct RdtBuffer_s {
