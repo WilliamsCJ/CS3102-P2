@@ -22,9 +22,11 @@ void handleSIGIO(int sig) {
 
     /* call the function passed */
     /* TODO: Move packet creation elsewhere? */
-    RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
-    recvRdtPacket(G_socket, packet);
+    RdtPacket_t* packet =  recvRdtPacket(G_socket);
+
     int input = RdtTypeTypeToRdtEvent(packet->header.type);
+    free(packet);
+
     fsm(input, G_socket);
 
     /* allow the signals to be delivered */
@@ -76,9 +78,8 @@ void rdtOpen(RdtSocket_t* socket) {
 }
 
 void rdtSend(RdtSocket_t* socket, const void* buf, int n) {
-  int seq_no = 0;
-
   G_buf = (uint8_t*) buf;
+  G_buf_size = n;
   fsm(RDT_INPUT_SEND, socket);
 
   while(G_state != RDT_STATE_ESTABLISHED) {
@@ -95,7 +96,7 @@ int main(int argc, char* argv[]) {
     exit(-1);
   }
 
-  char data[] = "Hello World";
+  char data[] = "Pizzazz";
 
   rdtOpen(G_socket);
   rdtSend(G_socket, &data, sizeof(data));

@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <string.h>
+#include "d_print.h"
 
 #include "sigio.h"
 #include "sigalrm.h"
@@ -37,21 +38,18 @@ void handleSIGIO(int sig) {
 
     /* call the function passed */
     /* TODO: Move packet creation elsewhere? */
-    RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
-    recvRdtPacket(G_socket, packet);
+    RdtPacket_t* packet = recvRdtPacket(G_socket);
 
-    char* buf;
+    printf("SEQ: %d\n", packet->header.sequence);
+    printf("Type: %d\n", packet->header.type);
 
     int input = RdtTypeTypeToRdtEvent(packet->header.type);
-    fsm(input, G_socket);
-
     if (input == RDT_EVENT_RCV_DATA) {
-      printf("SEQ: %d\n", packet->header.sequence);
-      printf("Type: %d\n", packet->header.type);
-      strcpy(packet->data, buf);
-
-      printf("%s\n", buf);
+      printf("Data: %s\n", (char*) packet->data);
     }
+
+    free(packet);
+    fsm(input, G_socket);
 
     /* allow the signals to be delivered */
     sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);

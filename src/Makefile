@@ -4,7 +4,7 @@ CC		=clang
 #CC	=gcc
 CC-flags		=-Wall -g
 
-LIB-files = UdpSocket.o RdtSocket.o sigio.o sigalrm.o
+LIB-files = UdpSocket.o RdtSocket.o sigio.o sigalrm.o d_print.o
 
 PROGRAMS = RdtServer RdtClient
 
@@ -12,7 +12,7 @@ PROGRAMS = RdtServer RdtClient
 
 .c.o:;	$(CC) $(CC-flags) -c $<
 
-C-files = UdpSocket.c RdtServer.c RdtClient.c RdtSocket.c sigio.c sigalrm.c
+C-files = UdpSocket.c RdtServer.c RdtClient.c RdtSocket.c sigio.c sigalrm.c d_print.c
 
 O-files	= $(C-files:%.c=%.o)
 
@@ -25,6 +25,8 @@ RdtSocket.c: RdtSocket.h
 sigio.c: sigio.h
 
 sigalrm.c: sigalrm.h
+
+d_print.c: d_print.h
 
 RdtServer:	RdtServer.o $(LIB-files)
 	$(CC) -o $@ $+

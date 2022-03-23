@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include "d_print.h"
+#include <inttypes.h>
+#include <arpa/inet.h>
 
 int G_retries = 0;
 int G_seq_no = 0;
@@ -85,40 +88,60 @@ void closeRdtSocket_t(RdtSocket_t* socket) {
   free(socket);
 }
 
-void recvRdtPacket(RdtSocket_t* socket, RdtPacket_t* packet) {
-  UdpBuffer_t buffer;
-  uint8_t bytes[RDT_MAX_SIZE];
+RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   int r, error = 0;
-  UdpSocket_t receive;
+  int size = sizeof(RdtHeader_t) + RDT_MAX_SIZE;
+  UdpBuffer_t buffer;
 
+  uint8_t bytes[size];
   buffer.bytes = bytes;
-  buffer.n = RDT_MAX_SIZE;
+  buffer.n = size;
 
   /* Receive UDP packets */
   r = recvUdp(socket->local, &(socket->receive), &buffer);
+  printf("Receiving %d\n", r);
   if (r < 0) {
     perror("Couldn't receive RDT packet");
     error = 1;
-    return;
+    return (RdtPacket_t*) 0;
   }
 
-  /* Cast bytes to RdtPacket_t */
+  RdtPacket_t* packet = (RdtPacket_t *) calloc(1, size);
   memcpy(packet, buffer.bytes, r);
 
-  /* TODO: add return value*/
+  D_HEXDUMP(packet, r);
+
+  return packet;
 }
 
 void sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint8_t n) {
+  printf("Sending %d\n", n);
+  D_HEXDUMP(packet, n);
+
   UdpBuffer_t buffer;
   int r;
+  int size = sizeof(RdtHeader_t) + n;
+  uint8_t bytes[size];
 
-  uint8_t bytes[n];
-  memcpy(bytes, packet, n);
+  memcpy(bytes, packet, size);
   buffer.n = n;
   buffer.bytes = bytes;
 
   r = sendUdp(socket->local, socket->remote, &buffer);
-  /* TODO: Check bytes sent. */
+}
+
+RdtPacket_t* createPacket(RDTPacketType_t type, uint16_t seq_no, uint8_t* data, uint16_t n) {
+  RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
+  packet->header.type = type;
+  packet->header.sequence = seq_no;
+  packet->header.size = n;
+
+  if (data != NULL) {
+
+    memcpy(&packet->data, data, n);
+  }
+
+  return packet;
 }
 
 int fsm(int input, RdtSocket_t* socket) {
@@ -131,11 +154,8 @@ int fsm(int input, RdtSocket_t* socket) {
       switch (input) {
         case RDT_INPUT_ACTIVE_OPEN: {
           G_seq_no = 0;
-          RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
-          packet->header.sequence = G_seq_no;
-          packet->header.type = SYN;
-
-          sendRdtPacket(socket, packet, sizeof(RdtPacket_t));
+          RdtPacket_t* packet = createPacket(SYN, G_seq_no, NULL, 0);
+          sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
           if (setITIMER(0, RDT_TIMEOUT_200MS) != 0) {
             perror("Couldn't set timeout");
             return -1;
@@ -151,11 +171,9 @@ int fsm(int input, RdtSocket_t* socket) {
       }
     case RDT_STATE_LISTEN:
       if (input == RDT_EVENT_RCV_SYN) {
-        RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
-        packet->header.sequence = 11;
-        packet->header.type = SYN_ACK;
+        RdtPacket_t* packet = createPacket(SYN_ACK, 1, NULL, 0);
 
-        sendRdtPacket(socket, packet, sizeof(RdtPacket_t));
+        sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
         G_state = RDT_STATE_ESTABLISHED;
         free(packet);
         return 0;
@@ -176,10 +194,7 @@ int fsm(int input, RdtSocket_t* socket) {
     case RDT_STATE_ESTABLISHED:
       switch (input) {
         case RDT_INPUT_SEND: {
-          RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
-          packet->header.sequence = G_seq_no;
-          packet->header.type = DATA;
-          packet->data = G_buf;
+          RdtPacket_t* packet = createPacket(DATA, 2, G_buf, G_buf_size);
 
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t) + G_buf_size);
           G_state = RDT_STATE_DATA_SENT;
@@ -188,32 +203,26 @@ int fsm(int input, RdtSocket_t* socket) {
           return 0;
         }
         case RDT_EVENT_RCV_DATA: {
-          RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
-          packet->header.sequence = 1;
-          packet->header.type = DATA_ACK;
+          RdtPacket_t* packet = createPacket(DATA_ACK, 3, NULL, 0);
 
-          sendRdtPacket(socket, packet, sizeof(RdtPacket_t));
+          sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
           G_state = RDT_STATE_ESTABLISHED;
           free(packet);
         }
-        case RDT_EVENT_RCV_FIN: {
-          RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
-          packet->header.sequence = 11;
-          packet->header.type = FIN_ACK;
+        case RDT_INPUT_CLOSE: {
+          RdtPacket_t* packet = createPacket(FIN, 4, NULL, 0);
 
-          sendRdtPacket(socket, packet, sizeof(RdtPacket_t));
-          G_state = RDT_STATE_CLOSED;
+          sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
+          G_retries = 0;
+          G_state = RDT_STATE_FIN_SENT;
           free(packet);
           return 0;
         }
-        case RDT_INPUT_CLOSE: {
-          RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
-          packet->header.sequence = 11;
-          packet->header.type = FIN;
+        case RDT_EVENT_RCV_FIN: {
+          RdtPacket_t* packet = createPacket(FIN_ACK, 5, NULL, 0);
 
-          sendRdtPacket(socket, packet, sizeof(RdtPacket_t));
-          G_retries = 0;
-          G_state = RDT_STATE_FIN_SENT;
+          sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
+          G_state = RDT_STATE_CLOSED;
           free(packet);
           return 0;
         }
@@ -242,4 +251,49 @@ int RdtTypeTypeToRdtEvent(RDTPacketType_t type) {
     case FIN_ACK: return RDT_EVENT_RCV_FIN_ACK;
     default: return RDT_INVALID;
   }
+}
+
+/*
+  Simple IPv4 checmsum calculation example.
+  saleem, Jan 2022, Jan 2021.
+
+  ** Illustrative example only -- not tested for real use in a protocol!
+  ** This will compile:
+
+    clang -Wall -c ipv4_checksum.c
+
+  See also RFC1071(I) and RFC1624(I).
+*/
+#include <inttypes.h>
+#include <arpa/inet.h>
+
+// Data should have network byte ordering before
+// being passed to this function.
+// Return value is in network byte order.
+uint16_t
+ipv4_header_checksum(void *data, uint32_t size)
+{
+  uint16_t *p_16 = (uint16_t *) data;
+  uint32_t c = 0;
+
+  // Create sum of 16-bit words: sum is
+  // "backwards" for convenenince only.
+  for( ; size > 1; size -= 2)
+    c += (uint32_t) p_16[size];
+
+  // Deal with odd number of bytes.
+  // IPv4 header should be 32-bit aligned.
+  if (size) // size == 1 here
+    c += (uint16_t) ((uint8_t) p_16[0]);
+
+  // Recover any carry bits from 16-bit sum
+  // to get the true one's complement sum.
+  while (c & 0xffff0000)
+    c =  (c        & 0x0000ffff)
+         + ((c >> 16) & 0x0000ffff); // carry bits
+
+  // one's complement of the one's complement sum
+  c = ~c;
+
+  return (uint16_t) htons((signed short) c);
 }
