@@ -99,7 +99,6 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
 
   /* Receive UDP packets */
   r = recvUdp(socket->local, &(socket->receive), &buffer);
-  printf("Receiving %d\n", r);
   if (r < 0) {
     perror("Couldn't receive RDT packet");
     error = 1;
@@ -109,15 +108,10 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   RdtPacket_t* packet = (RdtPacket_t *) calloc(1, size);
   memcpy(packet, buffer.bytes, r);
 
-  D_HEXDUMP(packet, r);
-
   return packet;
 }
 
 void sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint8_t n) {
-  printf("Sending %d\n", n);
-  D_HEXDUMP(packet, n);
-
   UdpBuffer_t buffer;
   int r;
   int size = sizeof(RdtHeader_t) + n;
@@ -144,10 +138,10 @@ RdtPacket_t* createPacket(RDTPacketType_t type, uint16_t seq_no, uint8_t* data, 
   return packet;
 }
 
-int fsm(int input, RdtSocket_t* socket) {
-  printf("fsm: old_state=%s, input=%s\n", fsm_strings[G_state], fsm_strings[input]);
+fsm(int input, RdtSocket_t* socket) {
+  printf("fsm: old_state=%s\tinput=%s\t", fsm_strings[G_state], fsm_strings[input]);
   int r;
-  int output;
+  int output = 0;
 
   switch (G_state) {
     case RDT_STATE_CLOSED:
@@ -158,39 +152,38 @@ int fsm(int input, RdtSocket_t* socket) {
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
           if (setITIMER(0, RDT_TIMEOUT_200MS) != 0) {
             perror("Couldn't set timeout");
-            return -1;
           }
 
           G_state = RDT_STATE_SYN_SENT;
+          output = RDT_ACTION_SND_SYN;
           free(packet);
-          return 0;
         }
         case RDT_INPUT_PASSIVE_OPEN:
           G_state = RDT_STATE_LISTEN;
-          return 0;
       }
+      break;
     case RDT_STATE_LISTEN:
       if (input == RDT_EVENT_RCV_SYN) {
         RdtPacket_t* packet = createPacket(SYN_ACK, 1, NULL, 0);
 
         sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
         G_state = RDT_STATE_ESTABLISHED;
+        output = RDT_ACTION_SND_SYN_ACK;
         free(packet);
-        return 0;
       }
+      break;
     case RDT_STATE_SYN_SENT:
       switch(input) {
         case RDT_EVENT_RCV_SYN_ACK: {
           G_state = RDT_STATE_ESTABLISHED;
-          return G_state;
         }
         case RDT_EVENT_TIMEOUT_2MSL: {
           G_state = RDT_STATE_CLOSED;
           G_retries++;
           fsm(RDT_INPUT_ACTIVE_OPEN, socket);
-          return 0;
         }
       }
+      break;
     case RDT_STATE_ESTABLISHED:
       switch (input) {
         case RDT_INPUT_SEND: {
@@ -199,14 +192,15 @@ int fsm(int input, RdtSocket_t* socket) {
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t) + G_buf_size);
           G_state = RDT_STATE_DATA_SENT;
           G_seq_no += 1;
+          output = RDT_ACTION_SND_DATA;
           free(packet);
-          return 0;
         }
         case RDT_EVENT_RCV_DATA: {
           RdtPacket_t* packet = createPacket(DATA_ACK, 3, NULL, 0);
 
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
           G_state = RDT_STATE_ESTABLISHED;
+          output = RDT_ACTION_SND_ACK;
           free(packet);
         }
         case RDT_INPUT_CLOSE: {
@@ -215,30 +209,31 @@ int fsm(int input, RdtSocket_t* socket) {
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
           G_retries = 0;
           G_state = RDT_STATE_FIN_SENT;
+          output = RDT_ACTION_SND_FIN;
           free(packet);
-          return 0;
         }
         case RDT_EVENT_RCV_FIN: {
           RdtPacket_t* packet = createPacket(FIN_ACK, 5, NULL, 0);
 
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
           G_state = RDT_STATE_CLOSED;
+          output = RDT_ACTION_SND_FIN_ACK;
           free(packet);
-          return 0;
         }
       }
+      break;
     case RDT_STATE_FIN_SENT:
       if (input == RDT_EVENT_RCV_FIN_ACK) {
         G_state = RDT_STATE_CLOSED;
-        return 0;
       };
+      break;
     default:
       printf("ERROR\n");
       printf("%s\n", fsm_strings[G_state]);
       printf("%s\n", fsm_strings[input]);
       G_state = RDT_INVALID;
   }
-  return -1;
+  printf("new_state=%s\toutput=%s\n", fsm_strings[G_state], fsm_strings[output]);
 }
 
 int RdtTypeTypeToRdtEvent(RDTPacketType_t type) {
