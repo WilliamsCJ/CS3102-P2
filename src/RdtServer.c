@@ -40,9 +40,6 @@ void handleSIGIO(int sig) {
     /* TODO: Move packet creation elsewhere? */
     RdtPacket_t* packet = recvRdtPacket(G_socket);
 
-    printf("SEQ: %d\n", packet->header.sequence);
-    printf("Type: %d\n", packet->header.type);
-
     int input = RdtTypeTypeToRdtEvent(packet->header.type);
     if (input == RDT_EVENT_RCV_DATA) {
       printf("Data: %s\n", (char*) packet->data);

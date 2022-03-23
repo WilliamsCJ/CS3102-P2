@@ -82,7 +82,7 @@ void rdtSend(RdtSocket_t* socket, const void* buf, int n) {
   G_buf_size = n;
   fsm(RDT_INPUT_SEND, socket);
 
-  while(G_state != RDT_STATE_ESTABLISHED) {
+  while(G_state != RDT_STATE_CLOSED) {
     (void) pause(); // Wait for signal
   }
   // Close

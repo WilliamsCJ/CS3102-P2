@@ -71,6 +71,7 @@ static const char* fsm_strings[] = {
     "SYN_SENT",
     "SYN_RCVD",
     "ESTABLISHED",
+    "DATA_SENT",
     "FIN_SENT",
     "FIN_RCV"
 };
