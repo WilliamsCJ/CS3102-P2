@@ -140,7 +140,6 @@ RdtPacket_t* createPacket(RDTPacketType_t type, uint16_t seq_no, uint8_t* data, 
 
 fsm(int input, RdtSocket_t* socket) {
   printf("fsm: old_state=%-12s input=%-12s ", fsm_strings[G_state], fsm_strings[input]);
-  printf("fsm: old_state=%-12s input=%-12s ", fsm_strings[G_state], fsm_strings[input]);
   int r;
   int output = 0;
 
@@ -217,7 +216,6 @@ fsm(int input, RdtSocket_t* socket) {
           break;
         }
         case RDT_EVENT_RCV_DATA: {
-          printf("@Shit\n");
           RdtPacket_t* packet = createPacket(DATA_ACK, 3, NULL, 0);
 
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
@@ -253,7 +251,7 @@ fsm(int input, RdtSocket_t* socket) {
       switch (input) {
         case RDT_EVENT_RCV_ACK: {
           G_state = RDT_STATE_ESTABLISHED;
-          fsm(RDT_INPUT_CLOSE, socket);
+          break;
         }
         /* Todo: Timeout case */
       }
@@ -269,8 +267,10 @@ fsm(int input, RdtSocket_t* socket) {
 
     default:
       G_state = RDT_INVALID;
+      printf("\n");
+      break;
   }
-  printf("new_state=%-12s output=%-12s", fsm_strings[G_state], fsm_strings[output]);
+  printf("new_state=%-12s output=%-12s\n", fsm_strings[G_state], fsm_strings[output]);
 }
 
 int RdtTypeTypeToRdtEvent(RDTPacketType_t type) {
