@@ -37,16 +37,16 @@ void handleSIGIO(int sig) {
     sigprocmask(SIG_BLOCK, &G_sigmask, (sigset_t *) 0);
 
     /* call the function passed */
-    /* TODO: Move packet creation elsewhere? */
-    RdtPacket_t* packet = recvRdtPacket(G_socket);
+    received = recvRdtPacket(G_socket);
 
-    int input = RdtTypeTypeToRdtEvent(packet->header.type);
+    int input = RdtTypeTypeToRdtEvent(received->header.type);
     if (input == RDT_EVENT_RCV_DATA) {
-      printf("Data: %s\n", (char*) packet->data);
+      printf("Data: %s\n", (char*) received->data);
     }
 
-    free(packet);
     fsm(input, G_socket);
+
+    free(received);
 
     /* allow the signals to be delivered */
     sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);

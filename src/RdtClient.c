@@ -3,7 +3,6 @@
 #include "RdtSocket.h"
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include <unistd.h>
 #include "sigio.h"
 #include "sigalrm.h"
@@ -20,14 +19,13 @@ void handleSIGIO(int sig) {
     /* protect the network and keyboard reads from signals */
     sigprocmask(SIG_BLOCK, &G_sigmask, (sigset_t *) 0);
 
-    /* call the function passed */
-    /* TODO: Move packet creation elsewhere? */
-    RdtPacket_t* packet =  recvRdtPacket(G_socket);
+    received = recvRdtPacket(G_socket);
 
-    int input = RdtTypeTypeToRdtEvent(packet->header.type);
-    free(packet);
+    int input = RdtTypeTypeToRdtEvent(received->header.type);
 
     fsm(input, G_socket);
+
+    free(received);
 
     /* allow the signals to be delivered */
     sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);
@@ -83,11 +81,17 @@ void rdtSend(RdtSocket_t* socket, const void* buf, int n) {
   fsm(RDT_INPUT_SEND, socket);
 
   // TODO: Check that the buffer has been completely sent
-  while(G_state != RDT_STATE_CLOSED) {
+  while(G_seq_no != G_buf_size) {
     (void) pause(); // Wait for signal
   }
-  
+
+  printf("%d / %d sent\n", G_seq_no, G_buf_size);
+
   // Close
+}
+
+void rdtClose(RdtSocket_t* socket) {
+  fsm(RDT_INPUT_CLOSE, socket);
 }
 
 int main(int argc, char* argv[]) {
@@ -98,10 +102,12 @@ int main(int argc, char* argv[]) {
     exit(-1);
   }
 
-  char data[] = "Pizzazz";
+  char data[] = "Pizzazz and shazam";
+  printf("%d\n", sizeof(data));
 
   rdtOpen(G_socket);
   rdtSend(G_socket, &data, sizeof(data));
+  rdtClose(G_socket);
 
   closeRdtSocket_t(G_socket);
 

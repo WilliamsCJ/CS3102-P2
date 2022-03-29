@@ -46,6 +46,7 @@
 extern int G_state;
 extern uint8_t* G_buf;
 extern uint8_t G_buf_size;
+extern uint16_t G_seq_no;
 
 static const char* fsm_strings[] = {
     "---",
@@ -119,11 +120,13 @@ void closeRdtSocket_t(RdtSocket_t* socket);
 
 RdtPacket_t* recvRdtPacket(RdtSocket_t* socket);
 
-void sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint8_t n);
+int sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint8_t n);
 
 int RdtTypeTypeToRdtEvent(RDTPacketType_t type);
 
-int fsm(int input, RdtSocket_t* socket);
+void fsm(int input, RdtSocket_t* socket);
+
+extern RdtPacket_t* received;
 
 #endif  // SRC_RDTSOCKET_H_
 
