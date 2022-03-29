@@ -85,8 +85,6 @@ void rdtSend(RdtSocket_t* socket, const void* buf, int n) {
     (void) pause(); // Wait for signal
   }
 
-  printf("%d / %d sent\n", G_seq_no, G_buf_size);
-
   // Close
 }
 
@@ -103,7 +101,6 @@ int main(int argc, char* argv[]) {
   }
 
   char data[] = "Pizzazz and shazam";
-  printf("%d\n", sizeof(data));
 
   rdtOpen(G_socket);
   rdtSend(G_socket, &data, sizeof(data));

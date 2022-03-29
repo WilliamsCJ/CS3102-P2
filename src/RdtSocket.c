@@ -135,7 +135,7 @@ RdtPacket_t* createPacket(RDTPacketType_t type, uint16_t seq_no, uint8_t* data) 
     /* TODO: This could be simpler? */
     uint16_t diff = G_buf_size - G_seq_no;
 
-    if (diff < RDT_MAX_SIZE) {
+    if (diff > RDT_MAX_SIZE) {
       n = RDT_MAX_SIZE;
     } else {
       n = diff;
@@ -250,15 +250,13 @@ void fsm(int input, RdtSocket_t* socket) {
           RdtPacket_t* packet = createPacket(DATA_ACK, G_seq_no, NULL);
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
 
-          if (checkSequenceAndChecksum() == 0) {
-            G_seq_no += packet->header.size;
-          }
-
+          G_seq_no += packet->header.size;
           G_state = RDT_STATE_ESTABLISHED;
           output = RDT_ACTION_SND_ACK;
           free(packet);
           break;
         }
+        close:
         case RDT_INPUT_CLOSE: {
           RdtPacket_t* packet = createPacket(FIN, G_seq_no, NULL);
 
@@ -285,13 +283,15 @@ void fsm(int input, RdtSocket_t* socket) {
     case RDT_STATE_DATA_SENT:
       switch (input) {
         case RDT_EVENT_RCV_ACK: {
-          printf("%d / %d\n", G_seq_no, G_buf_size);
           if (G_seq_no < G_buf_size) {
             goto send;
           }
           G_state = RDT_STATE_ESTABLISHED;
           break;
         }
+        case RDT_INPUT_CLOSE:
+          goto close;
+          break;
 //        case RDT_EVENT_TIMEOUT_2MSL
         /* Todo: Timeout case */
       }
