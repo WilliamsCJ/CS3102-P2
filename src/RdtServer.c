@@ -40,7 +40,11 @@ void handleSIGIO(int sig) {
     received = recvRdtPacket(G_socket);
 
     int input = RdtTypeTypeToRdtEvent(received->header.type);
+
+    printf("%s\n", fsm_strings[input]);
+
     if (input == RDT_EVENT_RCV_DATA) {
+      printf("%s\n", received->data);
       if (G_buf == NULL) {
         G_buf_size = received->header.size;
         G_buf = (uint8_t*) calloc(1, G_buf_size);
@@ -103,7 +107,7 @@ int main(int argc, char* argv[]) {
   setupSIGIO(G_socket->local->sd, handleSIGIO);
   setupSIGALRM(handleSIGALRM);
 
-  while(G_state != RDT_STATE_CLOSED   ) {
+  while(G_state != RDT_STATE_CLOSED) {
     (void) pause(); // Wait for signal
   }
 

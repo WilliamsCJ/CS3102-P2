@@ -90,6 +90,10 @@ void rdtSend(RdtSocket_t* socket, const void* buf, int n) {
 
 void rdtClose(RdtSocket_t* socket) {
   fsm(RDT_INPUT_CLOSE, socket);
+
+  while(G_state != RDT_STATE_CLOSED) {
+    (void) pause();
+  }
 }
 
 int main(int argc, char* argv[]) {

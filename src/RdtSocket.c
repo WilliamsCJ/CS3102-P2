@@ -258,7 +258,9 @@ void fsm(int input, RdtSocket_t* socket) {
         }
         close:
         case RDT_INPUT_CLOSE: {
-          RdtPacket_t* packet = createPacket(FIN, G_seq_no, NULL);
+          printf("hi\n");
+//          RdtPacket_t* packet = createPacket(FIN, G_seq_no, NULL);
+          RdtPacket_t* packet = createPacket(DATA, G_seq_no, NULL);
 
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
           G_retries = 0;
@@ -268,6 +270,7 @@ void fsm(int input, RdtSocket_t* socket) {
           break;
         }
         case RDT_EVENT_RCV_FIN: {
+          printf("Jo\n");
           RdtPacket_t* packet = createPacket(FIN_ACK, received->header.sequence, NULL);
 
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
@@ -289,11 +292,27 @@ void fsm(int input, RdtSocket_t* socket) {
           G_state = RDT_STATE_ESTABLISHED;
           break;
         }
-        case RDT_INPUT_CLOSE:
-          goto close;
+        closer:
+        case RDT_INPUT_CLOSE: {
+          printf("Poo\n");
+          RdtPacket_t* packet = createPacket(FIN, G_seq_no, NULL);
+          r = sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
+          printf("%d\n", r);
+          G_retries = 0;
+          G_state = RDT_STATE_FIN_SENT;
+          output = RDT_ACTION_SND_FIN;
+          free(packet);
           break;
-//        case RDT_EVENT_TIMEOUT_2MSL
-        /* Todo: Timeout case */
+        }
+        case RDT_EVENT_TIMEOUT_2MSL: {
+          if (G_retries < 10) {
+            G_retries++;
+            goto closer;
+          }
+
+          G_state = RDT_STATE_CLOSED;
+          break;
+        }
       }
       break;
 
