@@ -10,6 +10,7 @@
 #include "UdpSocket.h"
 #include "sigalrm.h"
 #include "d_print.h"
+#include "checksum/checksum.h"
 
 RdtPacket_t* received;
 int G_retries = 0;
@@ -128,8 +129,9 @@ int sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint8_t 
 RdtPacket_t* createPacket(RDTPacketType_t type, uint16_t seq_no, uint8_t* data) {
   uint16_t n = 0;
   RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
-  packet->header.type = type;
-  packet->header.sequence = seq_no;
+  packet->header.type = htons(type);
+  packet->header.sequence = htons(seq_no);
+  packet->header.checksum = htons(0);
 
   if (data != NULL) {
     /* TODO: This could be simpler? */
@@ -144,12 +146,24 @@ RdtPacket_t* createPacket(RDTPacketType_t type, uint16_t seq_no, uint8_t* data) 
     memcpy(&packet->data, data+G_seq_no, n);
   }
 
-  packet->header.size = n;
+  packet->header.size = htons(n);
+  packet->header.checksum = ipv4_header_checksum(packet, sizeof(RdtPacket_t));
 
   return packet;
 }
 
-int checkSequenceAndChecksum() {
+int convertPacketAndCompareChecksum() {
+  uint16_t expected = ipv4_header_checksum(received, sizeof(RdtPacket_t));
+
+  if (expected != received->header.checksum) {
+    printf("Checksums don't match!\n");
+    return -1;
+  }
+
+  received->header.sequence = ntohs(received->header.sequence);
+  received->header.size = ntohs(received->header.size);
+  received->header.type = ntohs(received->header.type);
+
   if (received->header.sequence != G_seq_no) {
     return -1;
   }
@@ -159,7 +173,7 @@ int checkSequenceAndChecksum() {
 
 void fsm(int input, RdtSocket_t* socket) {
   printf("fsm: old_state=%-12s input=%-12s ", fsm_strings[G_state], fsm_strings[input]);
-  int r;
+  int r, error;
   int output = 0;
 
   switch (G_state) {
@@ -209,10 +223,6 @@ void fsm(int input, RdtSocket_t* socket) {
       switch(input) {
         /* RCV SYN_ACK */
         case RDT_EVENT_RCV_SYN_ACK: {
-          if (checkSequenceAndChecksum() != 0) {
-            // TODO: Abort
-          }
-
           G_state = RDT_STATE_ESTABLISHED;
           break;
         }
@@ -247,6 +257,7 @@ void fsm(int input, RdtSocket_t* socket) {
           break;
         }
         case RDT_EVENT_RCV_DATA: {
+          error = convertPacketAndCompareChecksum();
           RdtPacket_t* packet = createPacket(DATA_ACK, G_seq_no, NULL);
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
 
@@ -337,49 +348,4 @@ int RdtTypeTypeToRdtEvent(RDTPacketType_t type) {
     case FIN_ACK: return RDT_EVENT_RCV_FIN_ACK;
     default: return RDT_INVALID;
   }
-}
-
-/*
-  Simple IPv4 checmsum calculation example.
-  saleem, Jan 2022, Jan 2021.
-
-  ** Illustrative example only -- not tested for real use in a protocol!
-  ** This will compile:
-
-    clang -Wall -c ipv4_checksum.c
-
-  See also RFC1071(I) and RFC1624(I).
-*/
-#include <inttypes.h>
-#include <arpa/inet.h>
-
-// Data should have network byte ordering before
-// being passed to this function.
-// Return value is in network byte order.
-uint16_t
-ipv4_header_checksum(void *data, uint32_t size)
-{
-  uint16_t *p_16 = (uint16_t *) data;
-  uint32_t c = 0;
-
-  // Create sum of 16-bit words: sum is
-  // "backwards" for convenenince only.
-  for( ; size > 1; size -= 2)
-    c += (uint32_t) p_16[size];
-
-  // Deal with odd number of bytes.
-  // IPv4 header should be 32-bit aligned.
-  if (size) // size == 1 here
-    c += (uint16_t) ((uint8_t) p_16[0]);
-
-  // Recover any carry bits from 16-bit sum
-  // to get the true one's complement sum.
-  while (c & 0xffff0000)
-    c =  (c        & 0x0000ffff)
-         + ((c >> 16) & 0x0000ffff); // carry bits
-
-  // one's complement of the one's complement sum
-  c = ~c;
-
-  return (uint16_t) htons((signed short) c);
 }
