@@ -41,23 +41,20 @@ void handleSIGIO(int sig) {
 
     int input = RdtTypeTypeToRdtEvent(received->header.type);
 
-    printf("%s\n", fsm_strings[input]);
 
     if (input == RDT_EVENT_RCV_DATA) {
-      printf("%s\n", received->data);
       if (G_buf == NULL) {
         G_buf_size = received->header.size;
         G_buf = (uint8_t*) calloc(1, G_buf_size);
-        memcpy(&received->data, G_buf, G_buf_size);
+        memcpy(G_buf, &(received->data), G_buf_size);
       } else {
-        G_buf = realloc(G_buf, G_buf_size + received->header.size);
-        memcpy(&received->data+G_buf_size, G_buf, received->header.size);
+        G_buf = (uint8_t*) realloc(G_buf, G_buf_size + received->header.size);
+        memcpy(G_buf+G_buf_size, &(received->data), received->header.size);
         G_buf_size = G_buf_size + received->header.size;
       }
     }
 
     fsm(input, G_socket);
-
     free(received);
 
     /* allow the signals to be delivered */
@@ -110,6 +107,8 @@ int main(int argc, char* argv[]) {
   while(G_state != RDT_STATE_CLOSED) {
     (void) pause(); // Wait for signal
   }
+
+  printf("Received data: %s\n", G_buf);
 
   closeRdtSocket_t(G_socket);
 

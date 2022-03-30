@@ -75,25 +75,27 @@ void rdtOpen(RdtSocket_t* socket) {
   }
 }
 
-void rdtSend(RdtSocket_t* socket, const void* buf, int n) {
-  G_buf = (uint8_t*) buf;
-  G_buf_size = n;
-  fsm(RDT_INPUT_SEND, socket);
-
-  // TODO: Check that the buffer has been completely sent
-  while(G_seq_no != G_buf_size) {
-    (void) pause(); // Wait for signal
-  }
-
-  // Close
-}
-
 void rdtClose(RdtSocket_t* socket) {
   fsm(RDT_INPUT_CLOSE, socket);
 
   while(G_state != RDT_STATE_CLOSED) {
     (void) pause();
   }
+}
+
+void rdtSend(RdtSocket_t* socket, const void* buf, int n) {
+  rdtOpen(G_socket);
+
+  G_buf = (uint8_t*) buf;
+  G_buf_size = n;
+  fsm(RDT_INPUT_SEND, socket);
+
+  // TODO: Check that the buffer has been completely sent
+  while(G_state != RDT_STATE_ESTABLISHED) {
+    (void) pause(); // Wait for signal
+  }
+
+  rdtClose(G_socket);
 }
 
 int main(int argc, char* argv[]) {
@@ -106,9 +108,7 @@ int main(int argc, char* argv[]) {
 
   char data[] = "Pizzazz and shazam";
 
-  rdtOpen(G_socket);
   rdtSend(G_socket, &data, sizeof(data));
-  rdtClose(G_socket);
 
   closeRdtSocket_t(G_socket);
 
