@@ -41,7 +41,15 @@ void handleSIGIO(int sig) {
 
     int input = RdtTypeTypeToRdtEvent(received->header.type);
     if (input == RDT_EVENT_RCV_DATA) {
-      printf("Data: %s\n", (char*) received->data);
+      if (G_buf == NULL) {
+        G_buf_size = received->header.size;
+        G_buf = (uint8_t*) calloc(1, G_buf_size);
+        memcpy(&received->data, G_buf, G_buf_size);
+      } else {
+        G_buf = realloc(G_buf, G_buf_size + received->header.size);
+        memcpy(&received->data+G_buf_size, G_buf, received->header.size);
+        G_buf_size = G_buf_size + received->header.size;
+      }
     }
 
     fsm(input, G_socket);

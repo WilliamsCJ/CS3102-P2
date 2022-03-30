@@ -1,15 +1,15 @@
 // Copyright 2022 190010906
 //
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <inttypes.h>
+#include <arpa/inet.h>
+
 #include "RdtSocket.h"
 #include "UdpSocket.h"
 #include "sigalrm.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
 #include "d_print.h"
-#include <inttypes.h>
-#include <arpa/inet.h>
 
 RdtPacket_t* received;
 int G_retries = 0;
