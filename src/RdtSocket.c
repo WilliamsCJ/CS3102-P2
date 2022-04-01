@@ -110,6 +110,10 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   RdtPacket_t* packet = (RdtPacket_t *) calloc(1, size);
   memcpy(packet, buffer.bytes, r);
 
+  packet->header.sequence = ntohs(packet->header.sequence);
+  packet->header.size = ntohs(packet->header.size);
+  packet->header.type = ntohs(packet->header.type);
+
   return packet;
 }
 
