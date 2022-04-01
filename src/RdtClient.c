@@ -106,9 +106,28 @@ int main(int argc, char* argv[]) {
     exit(-1);
   }
 
-  char data[] = "Pizzazz and shazam";
+  FILE    *infile;
+  char    *buffer;
+  long    numbytes;
 
-  rdtSend(G_socket, &data, sizeof(data));
+  infile = fopen("../slurpe-3", "r");
+
+  if(infile == NULL)
+    return 1;
+
+  fseek(infile, 0L, SEEK_END);
+  numbytes = ftell(infile);
+
+
+  fseek(infile, 0L, SEEK_SET);
+  buffer = (char*)calloc(numbytes, sizeof(char));
+  if(buffer == NULL)
+    return 1;
+
+  fread(buffer, sizeof(char), numbytes, infile);
+  fclose(infile);
+
+  rdtSend(G_socket, buffer, numbytes);
 
   closeRdtSocket_t(G_socket);
 

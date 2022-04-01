@@ -12,11 +12,13 @@ PROGRAMS = RdtServer RdtClient
 
 .c.o:;	$(CC) $(CC-flags) -c $<
 
-C-files = UdpSocket.c RdtServer.c RdtClient.c RdtSocket.c sigio.c sigalrm.c d_print.c checksum/checksum.c
+C-files = checksum.c UdpSocket.c RdtServer.c RdtClient.c RdtSocket.c sigio.c sigalrm.c d_print.c
 
 O-files	= $(C-files:%.c=%.o)
 
 all:	$(PROGRAMS)
+
+checksum.c: checksum.h
 
 UdpSocket.c:	UdpSocket.h
 
@@ -33,8 +35,6 @@ RdtServer:	RdtServer.o $(LIB-files)
 
 RdtClient:	RdtClient.o $(LIB-files)
 	$(CC) -o $@ $+
-
-checksum/checksum.c: checksum/checksum.h
 
 .PHONY:	clean
 

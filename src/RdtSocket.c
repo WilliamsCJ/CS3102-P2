@@ -10,13 +10,13 @@
 #include "RdtSocket.h"
 #include "UdpSocket.h"
 #include "sigalrm.h"
-#include "d_print.h"
 #include "checksum/checksum.h"
 
 RdtPacket_t* received;
 bool G_checksum_match;
 int G_retries = 0;
 uint16_t G_seq_no = 0;
+uint16_t G_prev_seq_no = 0;
 
 void fsm(int input, RdtSocket_t* socket);
 
@@ -124,11 +124,11 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   memcpy(packet, buffer.bytes, r);
 
   /* Calculate expected checksum and compare */
+  uint16_t checksum = packet->header.checksum;
+  packet->header.checksum = htons(0);
   uint16_t expected = ipv4_header_checksum(packet, r);
 
-  printf("%d\n", r);
-  printf("Exp %d vs Acc %d\n", expected, packet->header.checksum);
-  G_checksum_match = (expected == packet->header.checksum);
+  G_checksum_match = (expected == checksum);
 
   /* Convert header fields to host byteorder */
   packet->header.sequence = ntohs(packet->header.sequence);
@@ -191,20 +191,6 @@ RdtPacket_t* createPacket(RDTPacketType_t type, uint16_t seq_no, uint8_t* data) 
   return packet;
 }
 
-int compareChecksum() {
-  uint16_t expected = ipv4_header_checksum(received, sizeof(RdtPacket_t));
-
-  if (expected != received->header.checksum) {
-    printf("Checksums don't match!\n");
-    return -1;
-  }
-
-  if (received->header.sequence != G_seq_no) {
-    return -1;
-  }
-
-  return 0;
-}
 
 void fsm(int input, RdtSocket_t* socket) {
   printf("fsm: old_state=%-12s input=%-12s ", fsm_strings[G_state], fsm_strings[input]);
@@ -284,6 +270,9 @@ void fsm(int input, RdtSocket_t* socket) {
         case RDT_INPUT_SEND: {
           RdtPacket_t* packet = createPacket(DATA, G_seq_no, G_buf);
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t) + G_buf_size);
+          if (setITIMER(0, RDT_TIMEOUT_200MS) != 0) {
+            perror("Couldn't set timeout");
+          }
 
           G_state = RDT_STATE_DATA_SENT;
           G_seq_no += ntohs(packet->header.size);
@@ -294,14 +283,15 @@ void fsm(int input, RdtSocket_t* socket) {
         case RDT_EVENT_RCV_DATA: {
           int seq = G_seq_no;
 
-          if (G_checksum_match) {
-            seq += received->header.size;
-            G_seq_no = seq;
-          } else {
-            printf("no match\n");
-            printf("Size: %d, Sequence: %d, Type: %d\n", received->header.size, received->header.sequence, received->header.type);
-            exit(1);
-          }
+//          if (G_checksum_match) {
+//            seq += received->header.size;
+//            G_seq_no = seq;
+//          } else {
+//
+//          }
+
+          seq += received->header.size;
+          G_seq_no = seq;
 
           RdtPacket_t* packet = createPacket(DATA_ACK, seq, NULL);
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
@@ -360,7 +350,8 @@ void fsm(int input, RdtSocket_t* socket) {
         case RDT_EVENT_TIMEOUT_2MSL: {
           if (G_retries < 10) {
             G_retries++;
-            goto closer;
+            G_seq_no -= RDT_MAX_SIZE;
+            goto send ;
           }
 
           G_state = RDT_STATE_CLOSED;

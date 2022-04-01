@@ -79,12 +79,12 @@ static const char* fsm_strings[] = {
 
 
 typedef enum {
-  SYN       = ((uint8_t) 0),
-  SYN_ACK   = ((uint8_t) 1),
-  DATA      = ((uint8_t) 2),
-  DATA_ACK  = ((uint8_t) 3),
-  FIN       = ((uint8_t) 4),
-  FIN_ACK   = ((uint8_t) 5)
+  SYN       = ((uint16_t) 0),
+  SYN_ACK   = ((uint16_t) 1),
+  DATA      = ((uint16_t) 2),
+  DATA_ACK  = ((uint16_t) 3),
+  FIN       = ((uint16_t) 4),
+  FIN_ACK   = ((uint16_t) 5)
 } RDTPacketType_t;
 
 

@@ -108,7 +108,18 @@ int main(int argc, char* argv[]) {
     (void) pause(); // Wait for signal
   }
 
-  printf("Received data: %s\n", G_buf);
+  /* Write your buffer to disk. */
+  FILE* pFile = fopen("slurpe-3","wb");
+
+  if (pFile){
+    fwrite(G_buf, G_buf_size, 1, pFile);
+    puts("Wrote to file!");
+  }
+  else{
+    puts("Something wrong writing to File.");
+  }
+
+  fclose(pFile);
 
   closeRdtSocket_t(G_socket);
 
