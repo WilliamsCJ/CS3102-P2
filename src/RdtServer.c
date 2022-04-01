@@ -39,7 +39,7 @@ void handleSIGIO(int sig) {
     /* call the function passed */
     received = recvRdtPacket(G_socket);
 
-    int input = RdtTypeTypeToRdtEvent(received->header.type);
+    int input = rdtTypeToRdtEvent(received->header.type);
 
 
     if (input == RDT_EVENT_RCV_DATA) {

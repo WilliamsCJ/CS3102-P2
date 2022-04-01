@@ -5,6 +5,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include <arpa/inet.h>
+#include <stdbool.h>
 
 #include "RdtSocket.h"
 #include "UdpSocket.h"
@@ -13,6 +14,7 @@
 #include "checksum/checksum.h"
 
 RdtPacket_t* received;
+bool G_checksum_match;
 int G_retries = 0;
 uint16_t G_seq_no = 0;
 
@@ -93,13 +95,14 @@ void closeRdtSocket_t(RdtSocket_t* socket) {
 RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   int r, error = 0;
   int size = sizeof(RdtHeader_t) + RDT_MAX_SIZE;
-  UdpBuffer_t buffer;
 
+  /* Create UdpBuffer_t to receive datagram */
+  UdpBuffer_t buffer;
   uint8_t bytes[size];
   buffer.bytes = bytes;
   buffer.n = size;
 
-  /* Receive UDP packets */
+  /* Receive UDP datagram */
   r = recvUdp(socket->local, &(socket->receive), &buffer);
   if (r < 0) {
     perror("Couldn't receive RDT packet");
@@ -107,9 +110,16 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
     return (RdtPacket_t*) 0;
   }
 
+  /* Create RdtPacket_t and copy bytes */
   RdtPacket_t* packet = (RdtPacket_t *) calloc(1, size);
   memcpy(packet, buffer.bytes, r);
 
+  /* Calculate expected checksum and compare */
+  uint16_t expected = ipv4_header_checksum(packet, r);
+
+  G_checksum_match = (expected == packet->header.checksum);
+
+  /* Convert header fields to host byteorder */
   packet->header.sequence = ntohs(packet->header.sequence);
   packet->header.size = ntohs(packet->header.size);
   packet->header.type = ntohs(packet->header.type);
@@ -130,13 +140,27 @@ int sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint8_t 
   return sendUdp(socket->local, socket->remote, &buffer);
 }
 
+/*
+ * Function: createPacket
+ * ----------------------
+ * Creates RdtPacket for given type, sequence number and (optional) data.
+ *
+ * type: the RDTPacketType_t of the packet to create.
+ * seq_no: The uint16_t sequence number to give the packet.
+ * data: (Optional) pointer to uint8_t data. Should be NULL if type is not DATA.
+ *
+ * returns: Pointer to created RdtPacket_t.
+ */
 RdtPacket_t* createPacket(RDTPacketType_t type, uint16_t seq_no, uint8_t* data) {
   uint16_t n = 0;
+
+  /* Allocate memory for packet. Set type and sequence number. Zero checksum value. */
   RdtPacket_t* packet = (RdtPacket_t *) calloc(1, sizeof(RdtPacket_t));
   packet->header.type = htons(type);
   packet->header.sequence = htons(seq_no);
   packet->header.checksum = htons(0);
 
+  /* Calculate the header field value */
   if (data != NULL) {
     /* TODO: This could be simpler? */
     uint16_t diff = G_buf_size - G_seq_no;
@@ -150,23 +174,20 @@ RdtPacket_t* createPacket(RDTPacketType_t type, uint16_t seq_no, uint8_t* data) 
     memcpy(&packet->data, data+G_seq_no, n);
   }
 
+  /* Set header size and checksum */
   packet->header.size = htons(n);
-  packet->header.checksum = ipv4_header_checksum(packet, sizeof(RdtPacket_t));
+  packet->header.checksum = ipv4_header_checksum(packet, sizeof(RdtHeader_t) + n);
 
   return packet;
 }
 
-int convertPacketAndCompareChecksum() {
+int compareChecksum() {
   uint16_t expected = ipv4_header_checksum(received, sizeof(RdtPacket_t));
 
   if (expected != received->header.checksum) {
     printf("Checksums don't match!\n");
     return -1;
   }
-
-  received->header.sequence = ntohs(received->header.sequence);
-  received->header.size = ntohs(received->header.size);
-  received->header.type = ntohs(received->header.type);
 
   if (received->header.sequence != G_seq_no) {
     return -1;
@@ -261,11 +282,16 @@ void fsm(int input, RdtSocket_t* socket) {
           break;
         }
         case RDT_EVENT_RCV_DATA: {
-          error = convertPacketAndCompareChecksum();
-          RdtPacket_t* packet = createPacket(DATA_ACK, G_seq_no, NULL);
+          int seq = G_seq_no;
+
+          if (G_checksum_match) {
+            seq += received->header.size;
+            G_seq_no = seq;
+          }
+
+          RdtPacket_t* packet = createPacket(DATA_ACK, seq, NULL);
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
 
-          G_seq_no += packet->header.size;
           G_state = RDT_STATE_ESTABLISHED;
           output = RDT_ACTION_SND_ACK;
           free(packet);
@@ -299,6 +325,9 @@ void fsm(int input, RdtSocket_t* socket) {
       switch (input) {
         case RDT_EVENT_RCV_ACK: {
           if (G_seq_no < G_buf_size) {
+            if (received->header.sequence < G_seq_no) {
+              G_seq_no = received->header.sequence;
+            }
             goto send;
           }
           G_state = RDT_STATE_ESTABLISHED;
@@ -342,7 +371,17 @@ void fsm(int input, RdtSocket_t* socket) {
   printf("new_state=%-12s output=%-12s\n", fsm_strings[G_state], fsm_strings[output]);
 }
 
-int RdtTypeTypeToRdtEvent(RDTPacketType_t type) {
+/*
+ * Function: rdtTypeToRdtEvent
+ * ---------------------------
+ * Converts the value of the type field in RDT header to an RDT Event.
+ * This event is used by the fsm.
+ *
+ * type: The RdtPacketType_t value.
+ *
+ * returns: int, the RDT_Event
+ */
+int rdtTypeToRdtEvent(RDTPacketType_t type) {
   switch (type) {
     case SYN: return RDT_EVENT_RCV_SYN;
     case SYN_ACK: return RDT_EVENT_RCV_SYN_ACK;

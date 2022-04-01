@@ -122,7 +122,7 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket);
 
 int sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint8_t n);
 
-int RdtTypeTypeToRdtEvent(RDTPacketType_t type);
+int rdtTypeToRdtEvent(RDTPacketType_t type);
 
 void fsm(int input, RdtSocket_t* socket);
 

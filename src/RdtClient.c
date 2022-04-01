@@ -21,7 +21,7 @@ void handleSIGIO(int sig) {
 
     received = recvRdtPacket(G_socket);
 
-    int input = RdtTypeTypeToRdtEvent(received->header.type);
+    int input = rdtTypeToRdtEvent(received->header.type);
 
     fsm(input, G_socket);
 
