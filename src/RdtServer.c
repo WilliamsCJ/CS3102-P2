@@ -1,16 +1,15 @@
 // Copyright 2022 190010906
 //
-#include "RdtSocket.h"
 #include <stdlib.h>
 #include <stdio.h>
-#include "sigio.h"
 #include <signal.h>
 #include <unistd.h>
 #include <string.h>
-#include "d_print.h"
 
-#include "sigio.h"
-#include "sigalrm.h"
+#include "d_print/d_print.h"
+#include "sigio/sigio.h"
+#include "sigalrm/sigalrm.h"
+#include "RdtSocket.h"
 
 int G_port;
 int G_state = RDT_STATE_LISTEN;
@@ -109,7 +108,7 @@ int main(int argc, char* argv[]) {
   }
 
   /* Write your buffer to disk. */
-  FILE* pFile = fopen("slurpe-3","wb");
+  FILE* pFile = fopen("dog.jpg","wb");
 
   if (pFile){
     fwrite(G_buf, G_buf_size, 1, pFile);

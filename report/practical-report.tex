@@ -1,9 +1,11 @@
 \documentclass[12pt]{article}
 % \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
+\usepackage{listings}
 
 \setlength{\parindent}{0em}
-\setlength{\parskip}{1em}
+
+\def\code#1{\texttt{#1}}
 
 % FILL IN TITLE AND AUTHOR
 \title{
@@ -17,6 +19,8 @@
 \begin{document}
 
 \maketitle
+
+\newpage
 
 \section{Introduction}
 
@@ -32,6 +36,7 @@ This section will describe the design of the RDT protocol and the considerations
 
 RDT packets are constructed with the following structure:
 
+\begin{figure}[h]
 \begin{verbatim}
  0                   1                   2                   3  
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -41,8 +46,24 @@ RDT packets are constructed with the following structure:
 |              Size             |            Checksum           |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 \end{verbatim}
+\caption{RDT Header}
+\end{figure}
 
+The \texttt{type} field contains one following values, denoting the type of the packet:
 
+\begin{itemize}
+    \item 0 - SYN.
+    \item 1 - SYN ACK
+    \item 2 - DATA
+    \item 3 - DATA ACK 
+    \item 4 - FIN 
+    \item 5 - FIN ACK
+\end{itemize}
 
+This approach was chosen over a flag-based approach, as it makes it easier to check packet type and there were only a small number of types to define given the simple nature of the protocol.
+
+\subsection{Finite State Machine}
+
+\input{testing}
 
 \end{document}

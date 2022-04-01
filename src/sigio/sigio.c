@@ -8,7 +8,6 @@
 #include <unistd.h>
 
 #include "sigio.h"
-#include "UdpSocket.h"
 
 void perror(const char *s); // TODO: Do we need this?
 

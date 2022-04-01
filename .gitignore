@@ -57,11 +57,13 @@ dkms.conf
 **/*.fls
 **/*.log
 **/*.synctex.gz
+**/*.toc
 
 # Miscellaneous
 .idea/
 **/.DS_Store
 ~$*.docx
+**/.~lock*.docx#
 **/RdtClient
 **/RdtServer
 **/test

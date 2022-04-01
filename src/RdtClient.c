@@ -1,11 +1,12 @@
 // Copyright 2022 190010906
 //
-#include "RdtSocket.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include "sigio.h"
-#include "sigalrm.h"
+
+#include "RdtSocket.h"
+#include "sigio/sigio.h"
+#include "sigalrm/sigalrm.h"
 
 int G_port;
 int G_state = RDT_STATE_CLOSED;
@@ -110,7 +111,7 @@ int main(int argc, char* argv[]) {
   char    *buffer;
   long    numbytes;
 
-  infile = fopen("../slurpe-3", "r");
+  infile = fopen("./test/dog.jpg", "rb");
 
   if(infile == NULL)
     return 1;

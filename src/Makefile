@@ -4,38 +4,40 @@ CC		=clang
 #CC	=gcc
 CC-flags		=-Wall -g
 
-LIB-files = UdpSocket.o RdtSocket.o sigio.o sigalrm.o d_print.o checksum.o
-
+LIB = checksum.o sigio.o sigalrm.o UdpSocket.o d_print.o RdtSocket.o
 PROGRAMS = RdtServer RdtClient
 
-.SUFFIXES:	.c .o
+.PHONY: clean
 
-.c.o:;	$(CC) $(CC-flags) -c $<
-
-C-files = checksum.c UdpSocket.c RdtServer.c RdtClient.c RdtSocket.c sigio.c sigalrm.c d_print.c
-
-O-files	= $(C-files:%.c=%.o)
-
-all:	$(PROGRAMS)
-
-checksum.c: checksum.h
-
-UdpSocket.c:	UdpSocket.h
-
-RdtSocket.c: RdtSocket.h
-
-sigio.c: sigio.h
-
-sigalrm.c: sigalrm.h
-
-d_print.c: d_print.h
-
-RdtServer:	RdtServer.o $(LIB-files)
+RdtServer: RdtServer.o $(LIB)
 	$(CC) -o $@ $+
 
-RdtClient:	RdtClient.o $(LIB-files)
+RdtClient: RdtClient.o $(LIB)
 	$(CC) -o $@ $+
 
-.PHONY:	clean
+RdtClient.o: RdtClient.c
+	$(CC) -c ./RdtClient.c
 
-clean:;	rm -rf *.o $(PROGRAMS) *~
+RdtServer.o: RdtServer.c
+	$(CC) -c ./RdtServer.c
+
+RdtSocket.o: RdtSocket.c RdtSocket.h
+	$(CC) -c ./RdtSocket.c
+
+checksum.o: ./checksum/checksum.c ./checksum/checksum.h
+	$(CC) -c ./checksum/checksum.c
+
+sigio.o: ./sigio/sigio.c ./sigio/sigio.h
+	$(CC) -c ./sigio/sigio.c
+
+sigalrm.o: ./sigalrm/sigalrm.c ./sigalrm/sigalrm.h
+	$(CC) -c ./sigalrm/sigalrm.c
+
+UdpSocket.o: ./UdpSocket/UdpSocket.c ./UdpSocket/UdpSocket.h
+	$(CC) -c ./UdpSocket/UdpSocket.c
+
+d_print.o: ./d_print/d_print.c ./d_print/d_print.h
+	$(CC) -c ./d_print/d_print.c
+
+clean:
+    clean:;	rm -rf *.o $(PROGRAMS) *~

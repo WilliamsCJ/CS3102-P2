@@ -8,8 +8,8 @@
 #include <stdbool.h>
 
 #include "RdtSocket.h"
-#include "UdpSocket.h"
-#include "sigalrm.h"
+#include "UdpSocket/UdpSocket.h"
+#include "sigalrm/sigalrm.h"
 #include "checksum/checksum.h"
 
 RdtPacket_t* received;
