@@ -3,25 +3,43 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <inttypes.h>
 #include <arpa/inet.h>
 #include <stdbool.h>
 
-#include "RdtSocket.h"
+#include "rdt.h"
 #include "UdpSocket/UdpSocket.h"
 #include "sigalrm/sigalrm.h"
 #include "checksum/checksum.h"
+#include "sigio/sigio.h"
+#include "sigalrm/sigalrm.h"
 
+RdtSocket_t* G_socket;
 RdtPacket_t* received;
 bool G_checksum_match;
 int G_retries = 0;
+int G_state = RDT_STATE_CLOSED;
 uint16_t G_seq_no = 0;
 uint16_t G_prev_seq_no = 0;
+uint8_t* G_buf;
+uint8_t G_buf_size;
 
 void fsm(int input, RdtSocket_t* socket);
+void rdtOpen(RdtSocket_t* socket);
+void rdtClose(RdtSocket_t* socket);
+void handleSIGALRM(int sig);
+void handleSIGIO(int sig);
+int rdtTypeToRdtEvent(RDTPacketType_t type);
 
-// TODO: Docstring
-RdtSocket_t* openRdtClient(const char* hostname, const uint16_t port) {
+/* API START */
+/**
+ * Opens an RDT socket.
+ * @param hostname The hostname to open the socket to.
+ * @param port The port to open the socket on.
+ * @return Pointer to RdtSocket_t.
+ */
+RdtSocket_t* openRdtSocket(const char* hostname, const uint16_t port) {
   printf("Opening socket to %s:%d...\n", hostname, port);
   RdtSocket_t* socket = setupRdtSocket_t(hostname, port);
   if (socket < 0) {
@@ -33,16 +51,86 @@ RdtSocket_t* openRdtClient(const char* hostname, const uint16_t port) {
   return socket;
 }
 
-/*
- * Function: setup_sockets
- * -----------------------
- *
- * Sets up and opens UDP sockets.
- *
- * hostname (char*): Name of host to open socket to.
- *
- * returns: void
- *
+/**
+ * Send data over RDT.
+ * @param socket The socket to send data over.
+ * @param buf Buffer containing the data
+ * @param n The size of 'buf'
+ */
+void rdtSend(RdtSocket_t* socket, const void* buf, int n) {
+  rdtOpen(socket);
+
+  G_buf = (uint8_t*) buf;
+  G_buf_size = n;
+  fsm(RDT_INPUT_SEND, G_socket);
+
+  // TODO: Check that the buffer has been completely sent
+  while(G_state != RDT_STATE_ESTABLISHED) {
+    (void) pause(); // Wait for signal
+  }
+
+  rdtClose(G_socket);
+}
+
+/**
+ * Listen for RDT connections on socket.
+ * @param socket Socket to listen on.
+ */
+void rdtListen(RdtSocket_t* socket) {
+  G_socket = socket;
+  G_state = RDT_STATE_LISTEN;
+
+  setupSIGIO(G_socket->local->sd, handleSIGIO);
+  setupSIGALRM(handleSIGALRM);
+
+  // TODO: FSM
+
+  while(G_state != RDT_STATE_CLOSED) {
+    (void) pause(); // Wait for signal
+  }
+}
+/* API END */
+
+
+/* CONNECTION MANAGEMENT START */
+/**
+ * Open an RDT socket.
+ * @param socket Uninitialised RDT socket.
+ */
+void rdtOpen(RdtSocket_t* socket) {
+  /* Setup SIGIO to handle network events. */
+  G_socket = socket;
+
+  setupSIGIO(G_socket->local->sd, handleSIGIO);
+  setupSIGALRM(handleSIGALRM);
+
+  fsm(RDT_INPUT_ACTIVE_OPEN, G_socket);
+
+  while(G_state != RDT_STATE_ESTABLISHED) {
+    (void) pause(); // Wait for signal
+  }
+}
+
+/**
+ * Closes an RDT socket.
+ * @param socket The socket to close.
+ */
+void rdtClose(RdtSocket_t* socket) {
+  fsm(RDT_INPUT_CLOSE, socket);
+
+  while(G_state != RDT_STATE_CLOSED) {
+    (void) pause();
+  }
+}
+/* CONNECTION MANAGEMENT CLOSE */
+
+
+/* SOCKETS START */
+/**
+ * Sets up and opens UDP sockets to support RDT.
+ * @param hostname The name of the host to open socket to.
+ * @param port The port to open socket on.
+ * @return Pointer to RdtSocket_t.
  */
 RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port) {
   RdtSocket_t* socket = (RdtSocket_t*) calloc(1, sizeof(RdtSocket_t));
@@ -68,8 +156,6 @@ RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port) {
     error = 1;
   }
 
-//  configure_timeout(socket);
-
   if (error) {
     free(socket);
     socket = (RdtSocket_t *) -1;
@@ -78,28 +164,23 @@ RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port) {
   return socket;
 }
 
-
-/*
- * Function: cleanup_sockets
- * ---------------
- * Cleans up and closes the UDP sockets
- *
- * returns: void
+/**
+ * Cleans up and closes the underlying UDP sockets.
+ * @param socket The socket to close.
  */
 void closeRdtSocket_t(RdtSocket_t* socket) {
   closeUdp(socket->local);
   closeUdp(socket->remote);
   free(socket);
 }
+/* SOCKETS END */
 
-/*
- * Function: recvRdtPacket
- * -----------------------
- * Receive RDT packet from socket.
- *
- * socket: Pointer to RdtSocket_t to receive packet from.
- *
- * returns: Pointer to RdtPacket_t.
+
+/* PACKETS START */
+/**
+ * Receive an RDT packet from the socket.
+ * @param socket Pointer to RdtSocket_t to receive packet from.
+ * @return Pointer to RdtPacket_t.
  */
 RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   int r, error = 0;
@@ -138,6 +219,14 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   return packet;
 }
 
+// TODO: Is the right return value?
+/**
+ * Sends an RdtPacket_t over the specified RdtSocket.
+ * @param socket The socket to send the packet over.
+ * @param packet Pointer to the packet to send.
+ * @param n The size of 'packet' (header + data).
+ * @return TODO: What?
+ */
 int sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint8_t n) {
   UdpBuffer_t buffer;
   int r;
@@ -151,16 +240,12 @@ int sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint8_t 
   return sendUdp(socket->local, socket->remote, &buffer);
 }
 
-/*
- * Function: createPacket
- * ----------------------
- * Creates RdtPacket for given type, sequence number and (optional) data.
- *
- * type: the RDTPacketType_t of the packet to create.
- * seq_no: The uint16_t sequence number to give the packet.
- * data: (Optional) pointer to uint8_t data. Should be NULL if type is not DATA.
- *
- * returns: Pointer to created RdtPacket_t.
+/**
+ * Creates an RDTPacket for a given type, sequence number and (optional) data.
+ * @param type The RDTPacketType_t of the packet to create.
+ * @param seq_no The uint16_t sequence number to give the packet.
+ * @param data (Optional) pointer to uint8_t data. Should be NULL if type is not DATA.
+ * @return Pointer to created RdtPacket_t.
  */
 RdtPacket_t* createPacket(RDTPacketType_t type, uint16_t seq_no, uint8_t* data) {
   uint16_t n = 0;
@@ -190,8 +275,66 @@ RdtPacket_t* createPacket(RDTPacketType_t type, uint16_t seq_no, uint8_t* data) 
 
   return packet;
 }
+/* PACKETS END */
 
 
+/* SIGNALS START */
+/**
+ * SIGIO handler. Called when packets are received.
+ * @param sig
+ */
+void handleSIGIO(int sig) {
+  if (sig == SIGIO) {
+    /* protect the network and keyboard reads from signals */
+    sigprocmask(SIG_BLOCK, &G_sigmask, (sigset_t *) 0);
+
+    received = recvRdtPacket(G_socket);
+
+    int input = rdtTypeToRdtEvent(received->header.type);
+
+    fsm(input, G_socket);
+
+    free(received);
+
+    /* allow the signals to be delivered */
+    sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);
+  }
+  else {
+    perror("handleSIGIO(): got a bad signal number");
+    exit(1);
+  }
+}
+
+/**
+ * SIGALRM handler. Triggered 200ms after ITIMER set for alarm.
+ * @param sig
+ */
+void handleSIGALRM(int sig) {
+  if (sig == SIGALRM) {
+    /* protect handler actions from signals */
+    sigprocmask(SIG_BLOCK, &G_sigmask, (sigset_t *) 0);
+
+    /* Send a packet */
+    fsm(RDT_EVENT_TIMEOUT_2MSL, G_socket);
+
+    /* protect handler actions from signals */
+    sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);
+  }
+  else {
+    perror("handleSIGALRM() got a bad signal");
+    exit(1);
+  }
+}
+/* SIGNALS END */
+
+
+/* OTHER*/
+// TODO: Should this be rdtFSM?
+/**
+ * RDT Finite State Machine
+ * @param input
+ * @param socket
+ */
 void fsm(int input, RdtSocket_t* socket) {
   printf("fsm: old_state=%-12s input=%-12s ", fsm_strings[G_state], fsm_strings[input]);
   int r, error;
@@ -290,6 +433,16 @@ void fsm(int input, RdtSocket_t* socket) {
 //
 //          }
 
+          if (G_buf == NULL) {
+            G_buf_size = received->header.size;
+            G_buf = (uint8_t*) calloc(1, G_buf_size);
+            memcpy(G_buf, &(received->data), G_buf_size);
+          } else {
+            G_buf = (uint8_t*) realloc(G_buf, G_buf_size + received->header.size);
+            memcpy(G_buf+G_buf_size, &(received->data), received->header.size);
+            G_buf_size = G_buf_size + received->header.size;
+          }
+
           seq += received->header.size;
           G_seq_no = seq;
 
@@ -376,15 +529,11 @@ void fsm(int input, RdtSocket_t* socket) {
   printf("new_state=%-12s output=%-12s\n", fsm_strings[G_state], fsm_strings[output]);
 }
 
-/*
- * Function: rdtTypeToRdtEvent
- * ---------------------------
- * Converts the value of the type field in RDT header to an RDT Event.
- * This event is used by the fsm.
- *
- * type: The RdtPacketType_t value.
- *
- * returns: int, the RDT_Event
+/**
+ * Converts the value of the type field in RDT header to an RDT EVENT.
+ * These EVENTS are used by the FSM.
+ * @param type The RdtPacketType_t value.
+ * @return int, the RDT EVENT.
  */
 int rdtTypeToRdtEvent(RDTPacketType_t type) {
   switch (type) {
@@ -397,3 +546,4 @@ int rdtTypeToRdtEvent(RDTPacketType_t type) {
     default: return RDT_INVALID;
   }
 }
+/* OTHER END */

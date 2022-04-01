@@ -43,11 +43,6 @@
 #define RDT_STATE_FIN_SENT        ((int) 24)
 #define RDT_STATE_FIN_RCV         ((int) 25)
 
-extern int G_state;
-extern uint8_t* G_buf;
-extern uint8_t G_buf_size;
-extern uint16_t G_seq_no;
-
 static const char* fsm_strings[] = {
     "---",
     "active OPEN",
@@ -112,21 +107,21 @@ typedef struct RdtSocket_s {
   int         state;
 } RdtSocket_t;
 
-RdtSocket_t* openRdtClient(const char* hostname, const uint16_t port);
+extern uint8_t* G_buf;
+extern uint8_t G_buf_size;
+
+// TODO Docstrings
+
+RdtSocket_t* openRdtSocket(const char* hostname, const uint16_t port);
 
 RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port);
 
 void closeRdtSocket_t(RdtSocket_t* socket);
 
-RdtPacket_t* recvRdtPacket(RdtSocket_t* socket);
+void rdtSend(RdtSocket_t* socket, const void* buf, int n);
 
-int sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint8_t n);
+void rdtListen(RdtSocket_t* socket);
 
-int rdtTypeToRdtEvent(RDTPacketType_t type);
-
-void fsm(int input, RdtSocket_t* socket);
-
-extern RdtPacket_t* received;
 
 #endif  // SRC_RDTSOCKET_H_
 
