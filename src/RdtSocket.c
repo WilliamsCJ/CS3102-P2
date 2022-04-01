@@ -92,6 +92,15 @@ void closeRdtSocket_t(RdtSocket_t* socket) {
   free(socket);
 }
 
+/*
+ * Function: recvRdtPacket
+ * -----------------------
+ * Receive RDT packet from socket.
+ *
+ * socket: Pointer to RdtSocket_t to receive packet from.
+ *
+ * returns: Pointer to RdtPacket_t.
+ */
 RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   int r, error = 0;
   int size = sizeof(RdtHeader_t) + RDT_MAX_SIZE;
@@ -117,6 +126,8 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   /* Calculate expected checksum and compare */
   uint16_t expected = ipv4_header_checksum(packet, r);
 
+  printf("%d\n", r);
+  printf("Exp %d vs Acc %d\n", expected, packet->header.checksum);
   G_checksum_match = (expected == packet->header.checksum);
 
   /* Convert header fields to host byteorder */
@@ -162,7 +173,6 @@ RdtPacket_t* createPacket(RDTPacketType_t type, uint16_t seq_no, uint8_t* data) 
 
   /* Calculate the header field value */
   if (data != NULL) {
-    /* TODO: This could be simpler? */
     uint16_t diff = G_buf_size - G_seq_no;
 
     if (diff > RDT_MAX_SIZE) {
@@ -276,7 +286,7 @@ void fsm(int input, RdtSocket_t* socket) {
           sendRdtPacket(socket, packet, sizeof(RdtHeader_t) + G_buf_size);
 
           G_state = RDT_STATE_DATA_SENT;
-          G_seq_no += packet->header.size;
+          G_seq_no += ntohs(packet->header.size);
           output = RDT_ACTION_SND_DATA;
           free(packet);
           break;
@@ -287,6 +297,10 @@ void fsm(int input, RdtSocket_t* socket) {
           if (G_checksum_match) {
             seq += received->header.size;
             G_seq_no = seq;
+          } else {
+            printf("no match\n");
+            printf("Size: %d, Sequence: %d, Type: %d\n", received->header.size, received->header.sequence, received->header.type);
+            exit(1);
           }
 
           RdtPacket_t* packet = createPacket(DATA_ACK, seq, NULL);
