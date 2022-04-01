@@ -51,6 +51,13 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
+# LaTeX
+**/*.aux
+**/*.fdb_latexmk
+**/*.fls
+**/*.log
+**/*.synctex.gz
+
 # Miscellaneous
 .idea/
 **/.DS_Store
