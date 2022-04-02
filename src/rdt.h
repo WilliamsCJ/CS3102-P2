@@ -9,7 +9,7 @@
 
 #include <inttypes.h>
 
-#define RDT_MAX_SIZE 8
+#define RDT_MAX_SIZE              ((uint16_t) 8)
 #define RDT_TIMEOUT_200MS 200000
 
 #define RDT_INVALID               ((int)  0)
@@ -84,21 +84,17 @@ typedef enum {
 
 
 typedef struct RdtHeader_s {
-  uint16_t            sequence;
+  uint32_t            sequence;
   uint16_t            type;
-  uint16_t            size;
   uint16_t            checksum;
+  uint16_t            size;
+  uint16_t            padding;
 } RdtHeader_t;
 
 typedef struct RdtPacket_s {
   RdtHeader_t header;
   uint8_t     data[RDT_MAX_SIZE];  /* TODO: Should this be const */
 } RdtPacket_t;
-
-typedef struct RdtBuffer_s {
-  uint16_t n;
-  uint8_t* bytes;
-} RdtBuffer_t;
 
 typedef struct RdtSocket_s {
   UdpSocket_t* local;
@@ -108,7 +104,7 @@ typedef struct RdtSocket_s {
 } RdtSocket_t;
 
 extern uint8_t* G_buf;
-extern uint8_t G_buf_size;
+extern uint32_t G_buf_size;
 
 // TODO Docstrings
 
@@ -118,7 +114,7 @@ RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port);
 
 void closeRdtSocket_t(RdtSocket_t* socket);
 
-void rdtSend(RdtSocket_t* socket, const void* buf, int n);
+void rdtSend(RdtSocket_t* socket, const void* buf, uint32_t n);
 
 void rdtListen(RdtSocket_t* socket);
 

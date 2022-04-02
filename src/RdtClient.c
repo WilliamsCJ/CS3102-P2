@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
 
   FILE    *infile;
   char    *buffer;
-  long    numbytes;
+  uint32_t numbytes;
 
   infile = fopen("./test/dog.jpg", "rb");
 
@@ -38,7 +38,12 @@ int main(int argc, char* argv[]) {
 
   rdtSend(socket, buffer, numbytes);
 
+//  char data[] = "Pizzazz and shazam.";
+//  rdtSend(socket, &data, sizeof(data));
+
   closeRdtSocket_t(socket);
+
+  printf("%d\n", numbytes);
 
   return 0;
 }

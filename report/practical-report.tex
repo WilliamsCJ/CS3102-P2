@@ -62,8 +62,12 @@ The \texttt{type} field contains one following values, denoting the type of the 
 
 This approach was chosen over a flag-based approach, as it makes it easier to check packet type and there were only a small number of types to define given the simple nature of the protocol.
 
+32 bit values for were chosen for sequence and size as long data type often used for file sizes, and subsequently need to have 32 bit for sequence as product of buffer size. 
+
 \subsection{Finite State Machine}
 
 \input{testing}
+
+\input{analysis}
 
 \end{document}
