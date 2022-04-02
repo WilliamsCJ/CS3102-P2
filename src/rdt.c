@@ -25,7 +25,7 @@ uint32_t G_seq_no = 0;
 uint8_t* G_buf;
 uint32_t G_buf_size;
 
-void fsm(int input, RdtSocket_t* socket);
+void fsm(int input);
 void rdtOpen(RdtSocket_t* socket);
 void rdtClose(RdtSocket_t* socket);
 void handleSIGALRM(int sig);
@@ -62,7 +62,7 @@ void rdtSend(RdtSocket_t* socket, const void* buf, uint32_t n) {
 
   G_buf = (uint8_t*) buf;
   G_buf_size = n;
-  fsm(RDT_INPUT_SEND, G_socket);
+  fsm(RDT_INPUT_SEND);
 
   // TODO: Check that the buffer has been completely sent
   while(G_state != RDT_STATE_ESTABLISHED) {
@@ -104,7 +104,7 @@ void rdtOpen(RdtSocket_t* socket) {
   setupSIGIO(G_socket->local->sd, handleSIGIO);
   setupSIGALRM(handleSIGALRM);
 
-  fsm(RDT_INPUT_ACTIVE_OPEN, G_socket);
+  fsm(RDT_INPUT_ACTIVE_OPEN);
 
   while(G_state != RDT_STATE_ESTABLISHED) {
     (void) pause(); // Wait for signal
@@ -116,7 +116,7 @@ void rdtOpen(RdtSocket_t* socket) {
  * @param socket The socket to close.
  */
 void rdtClose(RdtSocket_t* socket) {
-  fsm(RDT_INPUT_CLOSE, socket);
+  fsm(RDT_INPUT_CLOSE);
 
   while(G_state != RDT_STATE_CLOSED) {
     (void) pause();
@@ -292,7 +292,7 @@ void handleSIGIO(int sig) {
 
     int input = rdtTypeToRdtEvent(received->header.type);
 
-    fsm(input, G_socket);
+    fsm(input);
 
     free(received);
 
@@ -315,7 +315,7 @@ void handleSIGALRM(int sig) {
     sigprocmask(SIG_BLOCK, &G_sigmask, (sigset_t *) 0);
 
     /* Send a packet */
-    fsm(RDT_EVENT_TIMEOUT_2MSL, G_socket);
+    fsm(RDT_EVENT_TIMEOUT_2MSL);
 
     /* protect handler actions from signals */
     sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);
@@ -329,13 +329,11 @@ void handleSIGALRM(int sig) {
 
 
 /* OTHER*/
-// TODO: Should this be rdtFSM?
 /**
  * RDT Finite State Machine
  * @param input
- * @param socket
  */
-void fsm(int input, RdtSocket_t* socket) {
+void fsm(int input) {
 //  printf("fsm: old_state=%-12s input=%-12s ", fsm_strings[G_state], fsm_strings[input]);
   int r, error;
   int output = 0;
@@ -352,7 +350,7 @@ void fsm(int input, RdtSocket_t* socket) {
 
           // Create and send packet, with 200MS timeout
           G_packet = createPacket(SYN, G_seq_no, NULL);
-          sendRdtPacket(socket, G_packet, sizeof(RdtHeader_t));
+          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
           if (setITIMER(0, RDT_TIMEOUT_200MS) != 0) {
             perror("Couldn't set timeout");
           }
@@ -376,7 +374,7 @@ void fsm(int input, RdtSocket_t* socket) {
         G_seq_no = received->header.sequence;
         G_packet = createPacket(SYN_ACK, G_seq_no, NULL);
 
-        sendRdtPacket(socket, G_packet, sizeof(RdtHeader_t));
+        sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
         G_state = RDT_STATE_ESTABLISHED;
         output = RDT_ACTION_SND_SYN_ACK;
         free(G_packet);
@@ -414,7 +412,7 @@ void fsm(int input, RdtSocket_t* socket) {
         case RDT_INPUT_SEND:
         {
           G_packet = createPacket(DATA, G_seq_no, G_buf);
-          sendRdtPacket(socket, G_packet, sizeof(RdtHeader_t) + ntohs(G_packet->header.size));
+          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t) + ntohs(G_packet->header.size));
           if (setITIMER(0, RDT_TIMEOUT_200MS) != 0) {
             perror("Couldn't set timeout");
           }
@@ -449,7 +447,7 @@ void fsm(int input, RdtSocket_t* socket) {
           G_seq_no = seq;
 
           RdtPacket_t* packet = createPacket(DATA_ACK, seq, NULL);
-          sendRdtPacket(socket, packet, sizeof(RdtHeader_t));
+          sendRdtPacket(G_socket, packet, sizeof(RdtHeader_t));
 
           G_state = RDT_STATE_ESTABLISHED;
           output = RDT_ACTION_SND_ACK;
@@ -460,7 +458,7 @@ void fsm(int input, RdtSocket_t* socket) {
         case RDT_INPUT_CLOSE: {
           G_packet = createPacket(FIN, G_seq_no, NULL);
 
-          sendRdtPacket(socket, G_packet, sizeof(RdtHeader_t));
+          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
           G_retries = 0;
           G_state = RDT_STATE_FIN_SENT;
           output = RDT_ACTION_SND_FIN;
@@ -470,7 +468,7 @@ void fsm(int input, RdtSocket_t* socket) {
         case RDT_EVENT_RCV_FIN: {
           G_packet = createPacket(FIN_ACK, received->header.sequence, NULL);
 
-          sendRdtPacket(socket, G_packet, sizeof(RdtHeader_t));
+          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
           G_state = RDT_STATE_CLOSED;
           output = RDT_ACTION_SND_FIN_ACK;
           free(G_packet);
@@ -494,7 +492,7 @@ void fsm(int input, RdtSocket_t* socket) {
         }
         case RDT_INPUT_CLOSE: {
           G_packet = createPacket(FIN, G_seq_no, NULL);
-          r = sendRdtPacket(socket, G_packet, sizeof(RdtHeader_t));
+          r = sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
           G_retries = 0;
           G_state = RDT_STATE_FIN_SENT;
           output = RDT_ACTION_SND_FIN;
