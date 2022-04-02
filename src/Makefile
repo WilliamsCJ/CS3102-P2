@@ -24,7 +24,7 @@ RdtServer.o: RdtServer.c
 rdt.o: rdt.c rdt.h
 	$(CC) -c ./rdt.c
 
-checksum.o: ./checksum/checksum.c ./checksum/checksum.h
+checksum.o: ./checksum/checksum.c ./checksum/checksum.h d_print.o
 	$(CC) -c ./checksum/checksum.c
 
 sigio.o: ./sigio/sigio.c ./sigio/sigio.h

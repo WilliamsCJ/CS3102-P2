@@ -217,7 +217,8 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   /* Calculate expected checksum and compare */
   uint16_t checksum = packet->header.checksum;
   packet->header.checksum = htons(0);
-  uint16_t expected = ipv4_header_checksum(packet, r);
+  uint16_t expected = ipv4_header_checksum(packet, sizeof(RdtHeader_t) + ntohs(packet->header.size));
+
 
   G_checksum_match = (expected == checksum);
 
@@ -434,12 +435,14 @@ void fsm(int input) {
           break;
         }
         case RDT_EVENT_RCV_DATA: {
-          //          if (G_checksum_match) {
-//            seq += received->header.size;
-//            G_seq_no = seq;
-//          } else {
-//
-//          }
+          if (!G_checksum_match) {
+            printf("FUCK\n");
+            RdtPacket_t* packet = createPacket(DATA_ACK, G_seq_no, NULL);
+            sendRdtPacket(G_socket, packet, sizeof(RdtHeader_t));
+            output = RDT_ACTION_SND_ACK;
+            free(packet);
+            break;
+          }
 
           /* Discard packet if the sequence number is lower than expected */
           if (received->header.sequence < G_seq_no) {
