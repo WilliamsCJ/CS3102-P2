@@ -13,7 +13,6 @@
 #include "sigalrm/sigalrm.h"
 #include "checksum/checksum.h"
 #include "sigio/sigio.h"
-#include "d_print/d_print.h"
 
 /* GLOBAL VARIABLES START */
 RdtSocket_t*  G_socket;                     // Global socket for connections.
@@ -28,7 +27,7 @@ bool          G_checksum_match;             // Flag for packet checksum match.
 int           G_retries = 0;                // Global retries counter.
 int           G_state = RDT_STATE_CLOSED;   // Global FSM state.
 uint32_t      G_seq_no = 0;                 // Sequence number.
-bool          G_debug = true;               // Debug ouput flag.
+bool          G_debug = false;               // Debug ouput flag.
 /* GLOBAL VARIABLES END */
 
 
@@ -55,6 +54,7 @@ RdtSocket_t* openRdtSocket(const char* hostname, const uint16_t port) {
     return socket;
   }
 
+
   printf("Ready!\n");
 
   return socket;
@@ -70,8 +70,8 @@ void rdtSend(RdtSocket_t* socket, const void* buf, uint32_t n) {
   G_buf = (uint8_t*) buf;
   G_buf_size = n;
 
+  printf("Sending %d bytes...\n", n);
   rdtOpen(socket);
-
   fsm(RDT_INPUT_SEND);
 
   // TODO: Check that the buffer has been completely sent
@@ -80,6 +80,7 @@ void rdtSend(RdtSocket_t* socket, const void* buf, uint32_t n) {
   }
 
   rdtClose(G_socket);
+  printf("Done!\n");
 }
 
 /**
@@ -93,6 +94,7 @@ void rdtListen(RdtSocket_t* socket) {
   setupSIGIO(G_socket->local->sd, handleSIGIO);
   setupSIGALRM(handleSIGALRM);
 
+  printf("Listening on port %d...\n", socket->local->addr.sin_port);
   // TODO: FSM
 
   while(G_state != RDT_STATE_CLOSED) {
@@ -194,7 +196,7 @@ void closeRdtSocket_t(RdtSocket_t* socket) {
  */
 RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   int r, error = 0;
-  int size = sizeof(RdtHeader_t) + RDT_MAX_SIZE;
+  int size = sizeof(RdtPacket_t);
 
   /* Create UdpBuffer_t to receive datagram */
   UdpBuffer_t buffer;
@@ -211,14 +213,13 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   }
 
   /* Create RdtPacket_t and copy bytes */
-  RdtPacket_t* packet = (RdtPacket_t *) calloc(1, size);
+  RdtPacket_t* packet = calloc(1, size);
   memcpy(packet, buffer.bytes, r);
 
   /* Calculate expected checksum and compare */
   uint16_t checksum = packet->header.checksum;
-  packet->header.checksum = htons(0);
-  uint16_t expected = ipv4_header_checksum(packet, sizeof(RdtHeader_t) + ntohs(packet->header.size));
-
+  packet->header.checksum = 0;
+  uint16_t expected = ipv4_header_checksum(packet, r);
 
   G_checksum_match = (expected == checksum);
 
@@ -226,6 +227,7 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   packet->header.sequence = ntohl(packet->header.sequence);
   packet->header.size = ntohs(packet->header.size);
   packet->header.type = ntohs(packet->header.type);
+  packet->header.checksum = checksum;
 
   return packet;
 }
@@ -238,7 +240,7 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
  * @param n The size of 'packet' (header + data).
  * @return TODO: What?
  */
-int sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint8_t n) {
+int sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint16_t n) {
   UdpBuffer_t buffer;
   int r;
   int size = sizeof(RdtHeader_t) + n;
@@ -283,7 +285,6 @@ RdtPacket_t* createPacket(RDTPacketType_t type, uint32_t seq_no, uint8_t* data) 
   /* Set header size and checksum */
   packet->header.size = htons(n);
   packet->header.checksum = ipv4_header_checksum(packet, sizeof(RdtHeader_t) + n);
-
   return packet;
 }
 /* PACKETS END */
@@ -436,7 +437,6 @@ void fsm(int input) {
         }
         case RDT_EVENT_RCV_DATA: {
           if (!G_checksum_match) {
-            printf("FUCK\n");
             RdtPacket_t* packet = createPacket(DATA_ACK, G_seq_no, NULL);
             sendRdtPacket(G_socket, packet, sizeof(RdtHeader_t));
             output = RDT_ACTION_SND_ACK;
