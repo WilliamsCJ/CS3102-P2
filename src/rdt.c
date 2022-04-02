@@ -67,10 +67,11 @@ RdtSocket_t* openRdtSocket(const char* hostname, const uint16_t port) {
  * @param n The size of 'buf'
  */
 void rdtSend(RdtSocket_t* socket, const void* buf, uint32_t n) {
-  rdtOpen(socket);
-
   G_buf = (uint8_t*) buf;
   G_buf_size = n;
+
+  rdtOpen(socket);
+
   fsm(RDT_INPUT_SEND);
 
   // TODO: Check that the buffer has been completely sent
@@ -404,7 +405,6 @@ void fsm(int input) {
 
           if (G_retries >= 10) {
             goto close;
-            break;
           }
 
           G_retries++;
@@ -443,12 +443,11 @@ void fsm(int input) {
 
           /* Discard packet if the sequence number is lower than expected */
           if (received->header.sequence < G_seq_no) {
-            output = RDT_INVALID;
-            break;
+            G_seq_no = received->header.sequence;
           }
 
           /* ACK the expected sequence number if received sequence number is greater
-           * than expected. This means a packet has likely been dropped */
+           * than expected. This means a DATA packet has likely been dropped */
           if (received->header.sequence > G_seq_no) {
             RdtPacket_t* packet = createPacket(DATA_ACK, G_seq_no, NULL);
             sendRdtPacket(G_socket, packet, sizeof(RdtHeader_t));
@@ -463,9 +462,12 @@ void fsm(int input) {
             G_buf = (uint8_t*) calloc(1, G_buf_size);
             memcpy(G_buf, &(received->data), G_buf_size);
           } else {
-            G_buf = (uint8_t*) realloc(G_buf, G_buf_size + received->header.size);
-            memcpy(G_buf+G_buf_size, &(received->data), received->header.size);
-            G_buf_size = G_buf_size + received->header.size;
+            if (G_buf_size < G_seq_no + received->header.size) {
+              G_buf = (uint8_t*) realloc(G_buf, G_buf_size * 2);
+              G_buf_size = G_buf_size * 2;
+            }
+
+            memcpy(G_buf+G_seq_no, &(received->data), received->header.size);
           }
 
           G_seq_no += received->header.size;

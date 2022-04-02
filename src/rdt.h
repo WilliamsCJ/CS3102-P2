@@ -9,7 +9,7 @@
 
 #include <inttypes.h>
 
-#define RDT_MAX_SIZE              ((uint16_t) 100)
+#define RDT_MAX_SIZE              ((uint16_t) 200)
 #define RDT_TIMEOUT_200MS 200000
 
 #define RDT_INVALID               ((int)  0)

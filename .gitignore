@@ -66,5 +66,4 @@ dkms.conf
 **/.~lock*.docx#
 **/RdtClient
 **/RdtServer
-**/test
 **/test.c
