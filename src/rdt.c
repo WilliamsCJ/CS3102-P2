@@ -24,6 +24,9 @@ int G_state = RDT_STATE_CLOSED;
 uint32_t G_seq_no = 0;
 uint8_t* G_buf;
 uint32_t G_buf_size;
+bool G_debug = true;
+
+#define DEBUG(fmt, ...) if (G_debug) printf(fmt, __VA_ARGS__)
 
 void fsm(int input);
 void rdtOpen(RdtSocket_t* socket);
@@ -334,7 +337,7 @@ void handleSIGALRM(int sig) {
  * @param input
  */
 void fsm(int input) {
-//  printf("fsm: old_state=%-12s input=%-12s ", fsm_strings[G_state], fsm_strings[input]);
+  DEBUG("fsm: old_state=%-12s input=%-12s ", fsm_strings[G_state], fsm_strings[input]);
   int r, error;
   int output = 0;
 
@@ -525,10 +528,8 @@ void fsm(int input) {
       printf("\n");
       break;
   }
-    if (G_seq_no % 1000 == 0) {
-      printf("Progress: %d / %d\n", G_seq_no, G_buf_size);
-    }
-//  printf("new_state=%-12s output=%-12s\n", fsm_strings[G_state], fsm_strings[output]);
+
+  DEBUG("new_state=%-12s output=%-12s\n", fsm_strings[G_state], fsm_strings[output]);
 }
 
 /**
