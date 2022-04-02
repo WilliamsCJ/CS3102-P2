@@ -11,32 +11,28 @@
 #include "sigalrm/sigalrm.h"
 #include "rdt.h"
 
-int G_port;
 
 int main(int argc, char* argv[]) {
-  int error = 0;
-  /* TODO: Args parsing */
+  if (argc != 3) {
+    printf("Usage: ./RdtServer <hostname> <out file>\n");
+    return -1;
+  }
 
-  /* Set up port and sockets */
-  G_port = getuid();
-  RdtSocket_t* socket = setupRdtSocket_t(argv[1], G_port);
+  FILE* pFile = fopen(argv[2],"wb");
+  if (!pFile) {
+    printf("Couldn't open file: %s\n", argv[1]);
+    return -1;
+  }
+
+  RdtSocket_t* socket = setupRdtSocket_t(argv[1], getuid());
+  if (socket < 0 ) {
+    return -1;
+  }
 
   rdtListen(socket);
-
-  /* Write your buffer to disk. */
-  FILE* pFile = fopen("dog.jpg","wb");
-
-  if (pFile){
-    fwrite(G_buf, G_buf_size, 1, pFile);
-    puts("Wrote to file!");
-  }
-  else{
-    puts("Something wrong writing to File.");
-  }
+  fwrite(G_buf, G_buf_size, 1, pFile);
 
   fclose(pFile);
-
   closeRdtSocket_t(socket);
-
   return 0;
 }

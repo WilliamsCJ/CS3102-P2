@@ -15,16 +15,22 @@
 #include "sigio/sigio.h"
 #include "d_print/d_print.h"
 
-RdtSocket_t* G_socket;
-RdtPacket_t* received;
-RdtPacket_t* G_packet;
-bool G_checksum_match;
-int G_retries = 0;
-int G_state = RDT_STATE_CLOSED;
-uint32_t G_seq_no = 0;
-uint8_t* G_buf;
-uint32_t G_buf_size;
-bool G_debug = true;
+/* GLOBAL VARIABLES START */
+RdtSocket_t*  G_socket;                     // Global socket for connections.
+RdtPacket_t*  received;                     // Received packet. Set by SIGIO handler.
+RdtPacket_t*  G_packet;                     // Outbound packet.
+
+uint8_t*      G_buf;                        // Data buffer for sending or receiving.
+uint32_t      G_buf_size;                   // Size of buf.
+uint16_t      G_prev_size;                  // Size of previous packet sent.
+bool          G_checksum_match;             // Flag for packet checksum match.
+
+int           G_retries = 0;                // Global retries counter.
+int           G_state = RDT_STATE_CLOSED;   // Global FSM state.
+uint32_t      G_seq_no = 0;                 // Sequence number.
+bool          G_debug = true;               // Debug ouput flag.
+/* GLOBAL VARIABLES END */
+
 
 #define DEBUG(fmt, ...) if (G_debug) printf(fmt, __VA_ARGS__)
 
@@ -337,7 +343,7 @@ void handleSIGALRM(int sig) {
  * @param input
  */
 void fsm(int input) {
-  DEBUG("fsm: old_state=%-12s input=%-12s ", fsm_strings[G_state], fsm_strings[input]);
+  DEBUG("fsm: old_state=%-12s input=%-12s seq=%u/%-8u ", fsm_strings[G_state], fsm_strings[input], G_seq_no, G_buf_size);
   int r, error;
   int output = 0;
 
@@ -420,6 +426,7 @@ void fsm(int input) {
             perror("Couldn't set timeout");
           }
 
+          G_prev_size = ntohs(G_packet->header.size);
           G_state = RDT_STATE_DATA_SENT;
           G_seq_no += (uint32_t) ntohs(G_packet->header.size);
           output = RDT_ACTION_SND_DATA;
@@ -427,15 +434,30 @@ void fsm(int input) {
           break;
         }
         case RDT_EVENT_RCV_DATA: {
-          uint32_t seq = G_seq_no;
-
-//          if (G_checksum_match) {
+          //          if (G_checksum_match) {
 //            seq += received->header.size;
 //            G_seq_no = seq;
 //          } else {
 //
 //          }
 
+          /* Discard packet if the sequence number is lower than expected */
+          if (received->header.sequence < G_seq_no) {
+            output = RDT_INVALID;
+            break;
+          }
+
+          /* ACK the expected sequence number if received sequence number is greater
+           * than expected. This means a packet has likely been dropped */
+          if (received->header.sequence > G_seq_no) {
+            RdtPacket_t* packet = createPacket(DATA_ACK, G_seq_no, NULL);
+            sendRdtPacket(G_socket, packet, sizeof(RdtHeader_t));
+            output = RDT_ACTION_SND_ACK;
+            free(packet);
+            break;
+          }
+
+          /* Sequence number is expected, so can read the data into our buffer */
           if (G_buf == NULL) {
             G_buf_size = received->header.size;
             G_buf = (uint8_t*) calloc(1, G_buf_size);
@@ -446,10 +468,8 @@ void fsm(int input) {
             G_buf_size = G_buf_size + received->header.size;
           }
 
-          seq += received->header.size;
-          G_seq_no = seq;
-
-          RdtPacket_t* packet = createPacket(DATA_ACK, seq, NULL);
+          G_seq_no += received->header.size;
+          RdtPacket_t* packet = createPacket(DATA_ACK, G_seq_no, NULL);
           sendRdtPacket(G_socket, packet, sizeof(RdtHeader_t));
 
           G_state = RDT_STATE_ESTABLISHED;
@@ -457,11 +477,16 @@ void fsm(int input) {
           free(packet);
           break;
         }
+
+        /* CLOSE INPUT */
         close:
         case RDT_INPUT_CLOSE: {
           G_packet = createPacket(FIN, G_seq_no, NULL);
-
           sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+          if (setITIMER(0, RDT_TIMEOUT_200MS) != 0) {
+            perror("Couldn't set timeout");
+          }
+
           G_retries = 0;
           G_state = RDT_STATE_FIN_SENT;
           output = RDT_ACTION_SND_FIN;
@@ -488,24 +513,19 @@ void fsm(int input) {
             if (received->header.sequence < G_seq_no) {
               G_seq_no = received->header.sequence;
             }
+            G_retries = 0;
             goto send;
           }
           G_state = RDT_STATE_ESTABLISHED;
           break;
         }
         case RDT_INPUT_CLOSE: {
-          G_packet = createPacket(FIN, G_seq_no, NULL);
-          r = sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
-          G_retries = 0;
-          G_state = RDT_STATE_FIN_SENT;
-          output = RDT_ACTION_SND_FIN;
-          free(G_packet);
-          break;
+          goto close;
         }
         case RDT_EVENT_TIMEOUT_2MSL: {
           if (G_retries < 10) {
             G_retries++;
-            G_seq_no -= RDT_MAX_SIZE;
+            G_seq_no -= G_prev_size;
             goto send;
           }
 
@@ -517,9 +537,22 @@ void fsm(int input) {
 
     /* FIN_SENT */
     case RDT_STATE_FIN_SENT:
-      if (input == RDT_EVENT_RCV_FIN_ACK) {
-        G_state = RDT_STATE_CLOSED;
-      };
+      switch(input) {
+        case RDT_EVENT_RCV_FIN_ACK: {
+          G_state = RDT_STATE_CLOSED;
+          break;
+        }
+        case RDT_EVENT_TIMEOUT_2MSL: {
+          if (G_retries < 10) {
+            G_retries++;
+            goto close;
+          }
+          break;
+        }
+        default: {
+          printf("Seq no %u\n", received->header.sequence);
+        }
+      }
       break;
 
 
@@ -529,7 +562,7 @@ void fsm(int input) {
       break;
   }
 
-  DEBUG("new_state=%-12s output=%-12s\n", fsm_strings[G_state], fsm_strings[output]);
+  DEBUG("new_state=%-12s output=%-12s \n", fsm_strings[G_state], fsm_strings[output]);
 }
 
 /**

@@ -6,44 +6,45 @@
 
 #include "rdt.h"
 
-int G_port;
+FILE    *file;
+char    *buf;
+uint32_t n;
 
 int main(int argc, char* argv[]) {
-  G_port = getuid();
-
-  RdtSocket_t* socket = openRdtSocket(argv[1], G_port);
-  if (socket < 0 ) {
-    exit(-1);
+  if (argc != 3) {
+    printf("Usage: ./RdtClient <hostname> <in file>\n");
+    return -1;
   }
 
-  FILE    *infile;
-  char    *buffer;
-  uint32_t numbytes;
+  RdtSocket_t* socket = openRdtSocket(argv[1], getuid());
+  if (socket < 0 ) {
+    printf("Couldn't open socket.\n");
+    return -1;
+  }
 
-  infile = fopen("./test/dog.jpg", "rb");
+  file = fopen(argv[2], "rb");
+  if (file == NULL) {
+    printf("Couldn't open file: %s\n", argv[2]);
+    return -1;
+  }
 
-  if(infile == NULL)
-    return 1;
+  /* Get file length */
+  fseek(file, 0L, SEEK_END);
+  n = ftell(file);
+  fseek(file, 0L, SEEK_SET);
 
-  fseek(infile, 0L, SEEK_END);
-  numbytes = ftell(infile);
+  /* Allocate buffer for data and copy file bytes */
+  buf = (char*) calloc(n, sizeof(char));
+  if(buf == NULL) {
+    return -1;
+  }
+  fread(buf, sizeof(char), n, file);
+  fclose(file);
 
-  fseek(infile, 0L, SEEK_SET);
-  buffer = (char*)calloc(numbytes, sizeof(char));
-  if(buffer == NULL)
-    return 1;
+  /* Send data over RDT */
+  rdtSend(socket, buf, n);
 
-  fread(buffer, sizeof(char), numbytes, infile);
-  fclose(infile);
-
-  rdtSend(socket, buffer, numbytes);
-
-//  char data[] = "Pizzazz and shazam.";
-//  rdtSend(socket, &data, sizeof(data));
-
+  /* Clean up and return */
   closeRdtSocket_t(socket);
-
-  printf("%d\n", numbytes);
-
   return 0;
 }
