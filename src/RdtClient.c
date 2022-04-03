@@ -2,6 +2,7 @@
 //
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "rdt.h"
@@ -11,9 +12,13 @@ char    *buf;
 uint32_t n;
 
 int main(int argc, char* argv[]) {
-  if (argc != 3) {
-    printf("Usage: ./RdtClient <hostname> <in file>\n");
+  if (argc != 3 && argc != 4) {
+    printf("Usage: ./RdtClient hostname file [debug]\n");
     return -1;
+  }
+
+  if (argc == 4 && strcmp(argv[3], "debug") == 0) {
+    G_debug = true;
   }
 
   RdtSocket_t* socket = openRdtSocket(argv[1], getuid());

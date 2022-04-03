@@ -13,9 +13,13 @@
 
 
 int main(int argc, char* argv[]) {
-  if (argc != 3) {
-    printf("Usage: ./RdtServer <hostname> <out file>\n");
+  if (argc != 3 && argc != 4) {
+    printf("Usage: ./RdtServer hostname file [debug]\n");
     return -1;
+  }
+
+  if (argc == 4 && strcmp(argv[3], "debug")) {
+    G_debug = true;
   }
 
   FILE* pFile = fopen(argv[2],"wb");
