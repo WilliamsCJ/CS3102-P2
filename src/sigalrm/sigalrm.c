@@ -27,12 +27,12 @@ struct itimerval G_timer;
  * saleem, Nov2002
  */
 int setITIMER(uint32_t sec, uint32_t usec) {
-  G_timer.it_interval.tv_sec = 0;
-  G_timer.it_interval.tv_usec = 0;
-  G_timer.it_value.tv_sec = sec;
-  G_timer.it_value.tv_usec = usec;
+    G_timer.it_interval.tv_sec = 0;
+    G_timer.it_interval.tv_usec = 0;
+    G_timer.it_value.tv_sec = sec;
+    G_timer.it_value.tv_usec = usec;
 
-  return setitimer(ITIMER_REAL, &G_timer, (struct itimerval *) 0);
+    return setitimer(ITIMER_REAL, &G_timer, (struct itimerval *) 0);
 }
 
 /*
@@ -46,14 +46,14 @@ int setITIMER(uint32_t sec, uint32_t usec) {
  * saleem, Nov2002
  */
 void setupSIGALRM(void(*handler)(int)) {
-  sigaddset(&G_sigmask, SIGALRM);
+    sigaddset(&G_sigmask, SIGALRM);
 
-  G_sigalrm.sa_handler = handler;
-  G_sigalrm.sa_flags = 0;
+    G_sigalrm.sa_handler = handler;
+    G_sigalrm.sa_flags = 0;
 
-  /* TODO: Change error handling */
-  if (sigaction(SIGALRM, &G_sigalrm, (struct sigaction *) 0) < 0) {
-    perror("setupSIGALRM(): sigaction() problem");
-    exit(0);
-  }
+    /* TODO: Change error handling */
+    if (sigaction(SIGALRM, &G_sigalrm, (struct sigaction *) 0) < 0) {
+        perror("setupSIGALRM(): sigaction() problem");
+        exit(0);
+    }
 }

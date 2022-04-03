@@ -73,33 +73,33 @@ static const char* fsm_strings[] = {
 
 
 typedef enum {
-  SYN       = ((uint16_t) 0),
-  SYN_ACK   = ((uint16_t) 1),
-  DATA      = ((uint16_t) 2),
-  DATA_ACK  = ((uint16_t) 3),
-  FIN       = ((uint16_t) 4),
-  FIN_ACK   = ((uint16_t) 5)
+    SYN       = ((uint16_t) 0),
+    SYN_ACK   = ((uint16_t) 1),
+    DATA      = ((uint16_t) 2),
+    DATA_ACK  = ((uint16_t) 3),
+    FIN       = ((uint16_t) 4),
+    FIN_ACK   = ((uint16_t) 5)
 } RDTPacketType_t;
 
 
 typedef struct RdtHeader_s {
-  uint32_t            sequence;
-  uint16_t            type;
-  uint16_t            checksum;
-  uint16_t            size;
-  uint16_t            padding;
+    uint32_t            sequence;
+    uint16_t            type;
+    uint16_t            checksum;
+    uint16_t            size;
+    uint16_t            padding;
 } RdtHeader_t;
 
 typedef struct RdtPacket_s {
-  RdtHeader_t header;
-  uint8_t     data[RDT_MAX_SIZE];  /* TODO: Should this be const */
+    RdtHeader_t header;
+    uint8_t     data[RDT_MAX_SIZE];  /* TODO: Should this be const */
 } RdtPacket_t;
 
 typedef struct RdtSocket_s {
-  UdpSocket_t* local;
-  UdpSocket_t* remote;
-  UdpSocket_t receive;
-  int         state;
+    UdpSocket_t* local;
+    UdpSocket_t* remote;
+    UdpSocket_t receive;
+    int         state;
 } RdtSocket_t;
 
 extern uint8_t* G_buf;
