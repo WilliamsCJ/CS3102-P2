@@ -91,7 +91,7 @@ void rdtSend(RdtSocket_t* socket, const void* buf, uint32_t n) {
     (void) pause(); // Wait for signal
   }
 
-  rdtClose(G_socket);
+  rdtClose();
   printf("Done!\n");
 }
 
@@ -139,7 +139,7 @@ void rdtOpen(RdtSocket_t* socket) {
  * Closes an RDT socket.
  * @param socket The socket to close.
  */
-void rdtClose(RdtSocket_t* socket) {
+void rdtClose() {
   fsm(RDT_INPUT_CLOSE);
 
   while(G_state != RDT_STATE_CLOSED) {
@@ -451,6 +451,12 @@ void fsm(int input) {
             goto open;
           }
         }
+
+        /* DEFAULT / ALL OTHER PACKET TYPES */
+        default: {
+        // TODO: RST
+      }
+
       }
       break;
 
@@ -546,6 +552,11 @@ void fsm(int input) {
         /* CLOSE INPUT */
         close:
         case RDT_INPUT_CLOSE: {
+          /* If this is the first attempt, set RTO to 200ms */
+          if (T_rto == 0) {
+            T_rto = HANDSHAKE_RTO;
+          }
+
           G_packet = createPacket(FIN, G_seq_no, NULL);
           sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
           if (setITIMER(0, RDT_TIMEOUT_200MS) != 0) {
@@ -596,6 +607,9 @@ void fsm(int input) {
 
           /* If whole buffer has been sent, return to the established state. */
           G_state = RDT_STATE_ESTABLISHED;
+
+          /* Set RTO to 0 for termination */
+          T_rto = 0;
           break;
         }
 
@@ -623,27 +637,38 @@ void fsm(int input) {
     /* FIN_SENT */
     case RDT_STATE_FIN_SENT:
       switch(input) {
+
+        /* RECEIVE FIN ACK */
         case RDT_EVENT_RCV_FIN_ACK: {
           G_state = RDT_STATE_CLOSED;
           break;
         }
+
+        /* RTO */ 
         case RDT_EVENT_RTO: {
-          if (G_retries < 10) {
+          if (G_retries < RDT_MAX_RETRIES) {
             G_retries++;
+            T_rto = T_rto * 2 > MAX_RTO ? MAX_RTO : T_rto * 2;  // Double RTO
             goto close;
           }
+
+          // TODO: SEND RST
+          G_state = RDT_STATE_CLOSED;
           break;
         }
+
+        /* DEFAULT */
         default: {
-          printf("Seq no %u\n", received->header.sequence);
+          // TODO: SEND RST
         }
+
       }
       break;
-
 
     default:
       G_state = RDT_INVALID;
       printf("\n");
+      // TODO: Send RST?
       break;
   }
 
