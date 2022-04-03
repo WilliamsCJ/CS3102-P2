@@ -8,6 +8,7 @@
 #include <inttypes.h>
 #include <time.h>
 
+#define HANDSHAKE_RTO ((uint32_t)  200000) // 200ms in microseconds
 #define MIN_RTO ((uint32_t)  1000000) //  1s in microseconds
 #define MAX_RTO ((uint32_t) 60000000) // 60s in microseconds
 #define RTO_TO_SEC(v_) ((uint32_t) v_ / 1000000)

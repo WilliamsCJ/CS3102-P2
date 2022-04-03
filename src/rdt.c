@@ -53,14 +53,14 @@ int rdtTypeToRdtEvent(RDTPacketType_t type);
  * @return Pointer to RdtSocket_t.
  */
 RdtSocket_t* openRdtSocket(const char* hostname, const uint16_t port) {
-  printf("Opening socket to %s:%d...\n", hostname, port);
+  printf("Opening socket to %s:%d... ", hostname, port);
   RdtSocket_t* socket = setupRdtSocket_t(hostname, port);
   if (socket < 0) {
     return socket;
   }
 
 
-  printf("Ready!\n");
+  printf("Done!\n");
 
   return socket;
 }
@@ -75,12 +75,19 @@ void rdtSend(RdtSocket_t* socket, const void* buf, uint32_t n) {
   G_buf = (uint8_t*) buf;
   G_buf_size = n;
 
-  printf("Sending %d bytes...\n", n);
+  printf("Connecting to remote host...\n");
   rdtOpen(socket);
+
+  if (G_state == RDT_STATE_CLOSED) {
+    printf("Unable to connect to remote host. Aborting!\n");
+    return;
+  }
+
+  printf("Sending %d bytes...\n", n);
   fsm(RDT_INPUT_SEND);
 
   // TODO: Check that the buffer has been completely sent
-  while(G_state != RDT_STATE_ESTABLISHED) {
+  while(G_state != RDT_STATE_ESTABLISHED || G_state != RDT_STATE_CLOSED) {
     (void) pause(); // Wait for signal
   }
 
@@ -123,7 +130,7 @@ void rdtOpen(RdtSocket_t* socket) {
 
   fsm(RDT_INPUT_ACTIVE_OPEN);
 
-  while(G_state != RDT_STATE_ESTABLISHED) {
+  while(G_state != RDT_STATE_ESTABLISHED  && G_state != RDT_STATE_CLOSED) {
     (void) pause(); // Wait for signal
   }
 }
@@ -354,31 +361,41 @@ void fsm(int input) {
   DEBUG("fsm: old_state=%-12s input=%-12s seq=%u/%-8u ", fsm_strings[G_state], fsm_strings[input], G_seq_no, G_buf_size);
   int r, error;
   int output = 0;
-  uint32_t rto;
 
   switch (G_state) {
 
     /* CLOSED */
     case RDT_STATE_CLOSED:
       switch (input) {
+
         /* ACTIVE OPEN */
         open:
         case RDT_INPUT_ACTIVE_OPEN: {
+          // TODO: Random
           G_seq_no = 0; // Set seq_no to 0 as we are starting a new transmission.
 
-          // Create and send packet, with 200MS timeout
+          /* If this is the first attempt, set RTO to 200ms */
+          if (T_rto == 0) {
+            T_rto = HANDSHAKE_RTO;
+          }
+
+          /* Create and send SYN packet */
           G_packet = createPacket(SYN, G_seq_no, NULL);
           sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
-          if (setITIMER(0, RDT_TIMEOUT_200MS) != 0) {
+
+          /* Set ITIMER to RTO, starting from 200ms for handshake */
+          if (setITIMER(RTO_TO_SEC(T_rto), RTO_TO_USEC(T_rto)) != 0) {
             perror("Couldn't set timeout");
           }
 
-          // Update state and output
+          /* Update state and output flag */
           G_state = RDT_STATE_SYN_SENT;
           output = RDT_ACTION_SND_SYN;
           free(G_packet);
           break;
         }
+
+        /* PASSIVE OPEN */
         case RDT_INPUT_PASSIVE_OPEN:
           G_state = RDT_STATE_LISTEN;
           break;
@@ -387,36 +404,52 @@ void fsm(int input) {
 
     /* LISTENING */
     case RDT_STATE_LISTEN:
-      /* RCV SYN */
-      if (input == RDT_EVENT_RCV_SYN) {
-        G_seq_no = received->header.sequence;
-        G_packet = createPacket(SYN_ACK, G_seq_no, NULL);
+      switch (input) {
 
-        sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
-        G_state = RDT_STATE_ESTABLISHED;
-        output = RDT_ACTION_SND_SYN_ACK;
-        free(G_packet);
+        /* RCV SYN */
+        case RDT_EVENT_RCV_SYN: {
+          /* Set sequence number to received sequence number */
+          G_seq_no = received->header.sequence;
+
+          /* Create and send SYN ACK packet */
+          G_packet = createPacket(SYN_ACK, G_seq_no, NULL);
+          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+
+          /* Update state and set output flag */
+          G_state = RDT_STATE_ESTABLISHED;
+          output = RDT_ACTION_SND_SYN_ACK;
+          free(G_packet);
+          break;
+        }
+
+        /* DEFAULT / ALL OTHER PACKET TYPES */
+        default: {
+          // TODO: RST
+        }
+
       }
       break;
 
     /* SYN_SENT */
     case RDT_STATE_SYN_SENT:
       switch(input) {
+
         /* RCV SYN_ACK */
         case RDT_EVENT_RCV_SYN_ACK: {
           G_state = RDT_STATE_ESTABLISHED;
+          T_rto = 0;
           break;
         }
+
         /* TIMEOUT */
         case RDT_EVENT_RTO: {
           G_state = RDT_STATE_CLOSED;
 
-          if (G_retries >= 10) {
-            goto close;
+          if (G_retries < RDT_MAX_RETRIES) {
+            G_retries++;
+            T_rto = T_rto * 2 > MAX_RTO ? MAX_RTO : T_rto * 2;  // Double RTO
+            goto open;
           }
-
-          G_retries++;
-          goto open;
         }
       }
       break;

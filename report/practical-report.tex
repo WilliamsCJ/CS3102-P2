@@ -64,6 +64,8 @@ This approach was chosen over a flag-based approach, as it makes it easier to ch
 
 32 bit values for were chosen for sequence and size as long data type often used for file sizes, and subsequently need to have 32 bit for sequence as product of buffer size. 
 
+200 ms is used initially for the handshake RTO, as packet is only 12 bytes.
+
 \subsection{Finite State Machine}
 
 \input{testing}
