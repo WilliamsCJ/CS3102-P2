@@ -1,33 +1,38 @@
 // Copyright 2022 190010906
 //
+#include <arpa/inet.h>
+#include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
-#include <inttypes.h>
-#include <arpa/inet.h>
-#include <stdbool.h>
 
-#include "rdt.h"
-#include "UdpSocket/UdpSocket.h"
-#include "sigalrm/sigalrm.h"
 #include "checksum/checksum.h"
+#include "rdt.h"
+#include "rto/rto.h"
+#include "sigalrm/sigalrm.h"
 #include "sigio/sigio.h"
+#include "UdpSocket/UdpSocket.h"
 
 /* GLOBAL VARIABLES START */
-RdtSocket_t*  G_socket;                     // Global socket for connections.
-RdtPacket_t*  received;                     // Received packet. Set by SIGIO handler.
-RdtPacket_t*  G_packet;                     // Outbound packet.
+RdtSocket_t*      G_socket;                     // Global socket for connections.
+RdtPacket_t*      received;                     // Received packet. Set by SIGIO handler.
+RdtPacket_t*      G_packet;                     // Outbound packet.
 
-uint8_t*      G_buf;                        // Data buffer for sending or receiving.
-uint32_t      G_buf_size;                   // Size of buf.
-uint16_t      G_prev_size;                  // Size of previous packet sent.
-bool          G_checksum_match;             // Flag for packet checksum match.
+struct timespec   G_timestamp;                  // Timestamp used for calculating RTT for variable retransmission.
 
-int           G_retries = 0;                // Global retries counter.
-int           G_state = RDT_STATE_CLOSED;   // Global FSM state.
-uint32_t      G_seq_no = 0;                 // Sequence number.
-bool          G_debug = false;               // Debug ouput flag.
+uint32_t          G_rtt;                        // RTT for last segment in microseconds (us).
+uint8_t*          G_buf;                        // Data buffer for sending or receiving.
+uint32_t          G_buf_size;                   // Size of buf.
+uint16_t          G_prev_size;                  // Size of previous packet sent.
+bool              G_checksum_match;             // Flag for packet checksum match.
+
+int               G_retries = 0;                // Global retries counter.
+int               G_state = RDT_STATE_CLOSED;   // Global FSM state.
+uint32_t          G_seq_no = 0;                 // Sequence number.
+bool              G_debug = false;              // Debug output flag.
 /* GLOBAL VARIABLES END */
 
 
@@ -349,6 +354,7 @@ void fsm(int input) {
   DEBUG("fsm: old_state=%-12s input=%-12s seq=%u/%-8u ", fsm_strings[G_state], fsm_strings[input], G_seq_no, G_buf_size);
   int r, error;
   int output = 0;
+  uint32_t rto;
 
   switch (G_state) {
 
@@ -418,16 +424,33 @@ void fsm(int input) {
     /* ESTABLISHED */
     case RDT_STATE_ESTABLISHED:
       switch (input) {
+
         /* SEND */
         send:
         case RDT_INPUT_SEND:
         {
+          /* Create packet */
           G_packet = createPacket(DATA, G_seq_no, G_buf);
-          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t) + ntohs(G_packet->header.size));
-          if (setITIMER(0, RDT_TIMEOUT_200MS) != 0) {
-            perror("Couldn't set timeout");
+
+          /* Calculate RTO based on previous RTT, or use default value of 1s. */
+          if (G_seq_no == 0) {
+            uint32_t rto = MIN_RTO;
+          } else {
+            uint32_t rto = T_rto;
           }
 
+          /* Start RTT timer. */
+          if (clock_gettime(CLOCK_REALTIME, &G_timestamp) != 0) {
+            perror("Couldn't start RTT timer.");
+          }
+
+          /* Send packet and set ITIMER for RTO */
+          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t) + ntohs(G_packet->header.size));
+          if (setITIMER(0, rto) != 0) {
+            perror("Couldn't set RTO");
+          }
+
+          /* Update state, sequence number, output (for fsm debug), etc. */
           G_prev_size = ntohs(G_packet->header.size);
           G_state = RDT_STATE_DATA_SENT;
           G_seq_no += (uint32_t) ntohs(G_packet->header.size);
@@ -435,6 +458,8 @@ void fsm(int input) {
           free(G_packet);
           break;
         }
+
+        /* RECEIVE DATA */
         case RDT_EVENT_RCV_DATA: {
           if (!G_checksum_match) {
             RdtPacket_t* packet = createPacket(DATA_ACK, G_seq_no, NULL);
@@ -498,6 +523,8 @@ void fsm(int input) {
           free(G_packet);
           break;
         }
+
+        /* RECEIVE FIN */
         case RDT_EVENT_RCV_FIN: {
           G_packet = createPacket(FIN_ACK, received->header.sequence, NULL);
 
@@ -507,13 +534,23 @@ void fsm(int input) {
           free(G_packet);
           break;
         }
+
       }
       break;
 
     /* DATA_SENT */
     case RDT_STATE_DATA_SENT:
       switch (input) {
+
+        /* RECEIVE ACK */
         case RDT_EVENT_RCV_ACK: {
+          /* Calculate the RTT in microseconds */
+          G_rtt = calculateRTT(&G_timestamp);
+
+          /* Calculate next RTO */
+          calculateRTO(G_rtt);
+
+          /* If the whole buffer hasn't been sent, send the next packet. */
           if (G_seq_no < G_buf_size) {
             if (received->header.sequence < G_seq_no) {
               G_seq_no = received->header.sequence;
@@ -521,22 +558,30 @@ void fsm(int input) {
             G_retries = 0;
             goto send;
           }
+
+          /* If whole buffer has been sent, return to the established state. */
           G_state = RDT_STATE_ESTABLISHED;
           break;
         }
+
+        /* CLOSE INPUT */
         case RDT_INPUT_CLOSE: {
           goto close;
         }
+
+        /* RTO */
         case RDT_EVENT_TIMEOUT_2MSL: {
-          if (G_retries < 10) {
-            G_retries++;
-            G_seq_no -= G_prev_size;
+          if (G_retries < RDT_MAX_RETRIES) {
+            G_retries++;  // Increment retries counter
+            G_seq_no -= G_prev_size;  // Reduce sequence number to last ACK'd.
+            T_rto = T_rto * 2;  // Double RTO
             goto send;
           }
 
           G_state = RDT_STATE_CLOSED;
           break;
         }
+
       }
       break;
 

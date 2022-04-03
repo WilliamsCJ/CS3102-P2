@@ -1,23 +1,24 @@
-/*
-  Simple IPv4 checmsum calculation example.
-  saleem, Jan 2022, Jan 2021.
-
-  ** Illustrative example only -- not tested for real use in a protocol!
-  ** This will compile:
-
-    clang -Wall -c ipv4_checksum.c
-
-  See also RFC1071(I) and RFC1624(I).
-*/
+// checksum.c - IPv4 Header Checksum for calculating RDT checksum.
+//
 #include <inttypes.h>
 #include <arpa/inet.h>
 
-// Data should have network byte ordering before
-// being passed to this function.
-// Return value is in network byte order.
-uint16_t
-ipv4_header_checksum(void *data, uint32_t size)
-{
+/**
+ * Calculates checksum using IPv4 Header Checksum algorithm.
+ *
+ * CITATION: Modified from ipv4_header_checksum in ipv4_checksum.c
+ *           by saleem, Jan 2022, Jan 2021.
+ *
+ * NOTES FROM ORIGINAL:
+ * - Data should have network byte ordering before
+ *   being passed to this function
+ * - Return value is in network byte order.
+ *
+ * @param data
+ * @param size
+ * @return
+ */
+uint16_t ipv4_header_checksum(void *data, uint32_t size) {
   uint8_t *p_8 = (uint8_t *) data;
   uint32_t c = 0;
 

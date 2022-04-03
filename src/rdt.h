@@ -7,10 +7,9 @@
 #include <inttypes.h>
 #include "UdpSocket/UdpSocket.h"
 
-#include <inttypes.h>
-
 #define RDT_MAX_SIZE              ((uint16_t) 1300)
-#define RDT_TIMEOUT_200MS 200000
+#define RDT_MAX_RETRIES           ((int) 5)
+#define RDT_TIMEOUT_200MS         (200000)
 
 #define RDT_INVALID               ((int)  0)
 
