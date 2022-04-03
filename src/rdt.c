@@ -366,6 +366,12 @@ void fsm(int input) {
   int r, error;
   int output = 0;
 
+  /* If RST is ever received as input, close the connection immediately. */
+  if (input == RDT_EVENT_RCV_RST) {
+    G_state = RDT_STATE_CLOSED;
+    return;
+  }
+
   switch (G_state) {
 
     /* CLOSED */
@@ -429,7 +435,14 @@ void fsm(int input) {
 
         /* DEFAULT / ALL OTHER PACKET TYPES */
         default: {
-          // TODO: RST
+          /* Create and send RST */
+          G_packet = createPacket(RST, 0, NULL);
+          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+
+          /* Remain in LISTEN state */
+          G_state = RDT_STATE_CLOSED;
+          output = RDT_ACTION_SND_RST;
+          free(G_packet);
         }
 
       }
@@ -459,7 +472,15 @@ void fsm(int input) {
 
         /* DEFAULT / ALL OTHER PACKET TYPES */
         default: {
-        // TODO: RST
+          /* Create and send RST */
+          G_packet = createPacket(RST, 0, NULL);
+          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+
+          /* Remain in SYN_SENT state */
+          G_state = RDT_STATE_SYN_SENT;
+          output = RDT_ACTION_SND_RST;
+          free(G_packet);
+          break;
       }
 
       }
@@ -505,7 +526,7 @@ void fsm(int input) {
         /* RECEIVE DATA */
         case RDT_EVENT_RCV_DATA: {
           if (!G_checksum_match) {
-            RdtPacket_t* packet = createPacket(DATA_ACK, G_seq_no, NULL);
+            RdtPacket_t* packet = createPacket(ACK, G_seq_no, NULL);
             sendRdtPacket(G_socket, packet, sizeof(RdtHeader_t));
             output = RDT_ACTION_SND_ACK;
             free(packet);
@@ -520,7 +541,7 @@ void fsm(int input) {
           /* ACK the expected sequence number if received sequence number is greater
            * than expected. This means a DATA packet has likely been dropped */
           if (received->header.sequence > G_seq_no) {
-            RdtPacket_t* packet = createPacket(DATA_ACK, G_seq_no, NULL);
+            RdtPacket_t* packet = createPacket(ACK, G_seq_no, NULL);
             sendRdtPacket(G_socket, packet, sizeof(RdtHeader_t));
             output = RDT_ACTION_SND_ACK;
             free(packet);
@@ -542,7 +563,7 @@ void fsm(int input) {
           }
 
           G_seq_no += received->header.size;
-          RdtPacket_t* packet = createPacket(DATA_ACK, G_seq_no, NULL);
+          RdtPacket_t* packet = createPacket(ACK, G_seq_no, NULL);
           sendRdtPacket(G_socket, packet, sizeof(RdtHeader_t));
 
           G_state = RDT_STATE_ESTABLISHED;
@@ -660,25 +681,34 @@ void fsm(int input) {
             goto close;
           }
 
-          // TODO: SEND RST
+          G_packet = createPacket(RST, 0, NULL);
+          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
           G_state = RDT_STATE_CLOSED;
+          output = RDT_ACTION_SND_RST;
+          free(G_packet);
           printf("Unable to terminate gracefully. Terminating abruptly!");
           break;
         }
 
         /* DEFAULT */
         default: {
-          // TODO: SEND RST
+          G_packet = createPacket(RST, 0, NULL);
+          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+          G_state = RDT_STATE_CLOSED;
+          output = RDT_ACTION_SND_RST;
+          free(G_packet);
         }
 
       }
       break;
 
     default:
+      G_packet = createPacket(RST, 0, NULL);
+      sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+      G_state = RDT_STATE_CLOSED;
+      output = RDT_ACTION_SND_RST;
+      free(G_packet);
       G_state = RDT_INVALID;
-      printf("\n");
-      // TODO: Send RST?
-      break;
   }
 
   DEBUG("new_state=%-12s output=%-12s \n", fsm_strings[G_state], fsm_strings[output]);
@@ -693,13 +723,14 @@ void fsm(int input) {
  */
 int rdtTypeToRdtEvent(RDTPacketType_t type) {
   switch (type) {
-    case SYN: return RDT_EVENT_RCV_SYN;
-    case SYN_ACK: return RDT_EVENT_RCV_SYN_ACK;
-    case DATA: return RDT_EVENT_RCV_DATA;
-    case DATA_ACK: return RDT_EVENT_RCV_ACK;
-    case FIN: return RDT_EVENT_RCV_FIN;
-    case FIN_ACK: return RDT_EVENT_RCV_FIN_ACK;
-    default: return RDT_INVALID;
+    case SYN:         return RDT_EVENT_RCV_SYN;
+    case SYN_ACK:     return RDT_EVENT_RCV_SYN_ACK;
+    case DATA:        return RDT_EVENT_RCV_DATA;
+    case ACK:         return RDT_EVENT_RCV_ACK;
+    case FIN:         return RDT_EVENT_RCV_FIN;
+    case FIN_ACK:     return RDT_EVENT_RCV_FIN_ACK;
+    case RST:         return RDT_EVENT_RCV_RST;
+    default:          return RDT_INVALID;
   }
 }
 
@@ -707,17 +738,13 @@ int rdtTypeToRdtEvent(RDTPacketType_t type) {
  * Prints progress for sender.
  */
 void printProgress(int input) {
-  if (G_sender && G_state == RDT_STATE_DATA_SENT && input == RDT_EVENT_RCV_ACK) {
+  if (G_sender && G_state == RDT_STATE_DATA_SENT && input == RDT_EVENT_RCV_ACK && !G_debug) {
     double progress = (double) (((double) G_seq_no / (double) G_buf_size)) * 100.0;
-    if (progress > 0.0 && !G_debug) {
+    if (progress > 0.0) {
       printf("\b\b\b\b\b\b\b\b");
     }
     printf("%.1f%%", progress);
-    if (G_debug) {
-      printf("\n");
-    } else {
-      fflush(stdout);
-    }
+    fflush(stdout);
     if (progress == 100.0) {
       printf("\n");
     }

@@ -29,9 +29,10 @@ typedef enum {
   SYN       = ((uint16_t) 0),
   SYN_ACK   = ((uint16_t) 1),
   DATA      = ((uint16_t) 2),
-  DATA_ACK  = ((uint16_t) 3),
+  ACK       = ((uint16_t) 3),
   FIN       = ((uint16_t) 4),
-  FIN_ACK   = ((uint16_t) 5)
+  FIN_ACK   = ((uint16_t) 5),
+  RST       = ((uint16_t) 6)
 } RDTPacketType_t;
 
 typedef struct RdtHeader_s {
@@ -77,21 +78,23 @@ void rdtListen(RdtSocket_t* socket);
 #define RDT_ACTION_SND_ACK        ((int)  8)
 #define RDT_ACTION_SND_FIN        ((int)  9)
 #define RDT_ACTION_SND_FIN_ACK    ((int) 10)
-#define RDT_EVENT_RCV_SYN         ((int) 11)
-#define RDT_EVENT_RCV_SYN_ACK     ((int) 12)
-#define RDT_EVENT_RCV_DATA        ((int) 13)
-#define RDT_EVENT_RCV_ACK         ((int) 14)
-#define RDT_EVENT_RCV_FIN         ((int) 15)
-#define RDT_EVENT_RCV_FIN_ACK     ((int) 16)
-#define RDT_EVENT_RTO             ((int) 17)
-#define RDT_STATE_CLOSED          ((int) 18)
-#define RDT_STATE_LISTEN          ((int) 19)
-#define RDT_STATE_SYN_SENT        ((int) 20)
-#define RDT_STATE_SYN_RCVD        ((int) 21)
-#define RDT_STATE_ESTABLISHED     ((int) 22)
-#define RDT_STATE_DATA_SENT       ((int) 23)
-#define RDT_STATE_FIN_SENT        ((int) 24)
-#define RDT_STATE_FIN_RCV         ((int) 25)
+#define RDT_ACTION_SND_RST        ((int) 11)
+#define RDT_EVENT_RCV_SYN         ((int) 12)
+#define RDT_EVENT_RCV_SYN_ACK     ((int) 13)
+#define RDT_EVENT_RCV_DATA        ((int) 14)
+#define RDT_EVENT_RCV_ACK         ((int) 15)
+#define RDT_EVENT_RCV_FIN         ((int) 16)
+#define RDT_EVENT_RCV_FIN_ACK     ((int) 17)
+#define RDT_EVENT_RCV_RST         ((int) 18)
+#define RDT_EVENT_RTO             ((int) 19)
+#define RDT_STATE_CLOSED          ((int) 20)
+#define RDT_STATE_LISTEN          ((int) 21)
+#define RDT_STATE_SYN_SENT        ((int) 22)
+#define RDT_STATE_SYN_RCVD        ((int) 23)
+#define RDT_STATE_ESTABLISHED     ((int) 24)
+#define RDT_STATE_DATA_SENT       ((int) 25)
+#define RDT_STATE_FIN_SENT        ((int) 26)
+#define RDT_STATE_FIN_RCV         ((int) 27)
 /* FSM MACRO VARIABLES END */
 
 
@@ -108,12 +111,14 @@ static const char* fsm_strings[] = {
     "snd ACK",
     "snd FIN",
     "snd FIN_ACK",
+    "snd RST",
     "rcv SYN",
     "rcv SYN_ACK",
     "rcv DATA",
     "rcv ACK",
     "rcv FIN",
     "rcv FIN_ACK",
+    "rcv RST",
     "RTO",
     "CLOSE",
     "LISTEN",
