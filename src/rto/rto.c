@@ -12,7 +12,6 @@ uint32_t T_rto, t_n, r_n, s_n, v_n;
 uint32_t T_rto = 0;
 /* GLOBAL VARIABLES END */
 
-
 /**
  * Calculates current RTO from last measured RTT.
  *
@@ -55,7 +54,7 @@ uint32_t calculateRTO(uint32_t r_n) {
   */
   t_n = s_n + (v_n << 2);
 
-  T_rto = t_n   < MIN_RTO ? MIN_RTO : t_n;   // RFC6298(PS) Section 2.4
+  T_rto = t_n < MIN_RTO ? MIN_RTO : t_n;     // RFC6298(PS) Section 2.4
   T_rto = T_rto > MAX_RTO ? MAX_RTO : T_rto; // RFC6298(PS) Section 2.5
 
   return T_rto;
@@ -66,7 +65,7 @@ uint32_t calculateRTO(uint32_t r_n) {
  * @param timestamp from packet send.
  * @return uint32_t RTT in microseconds
  */
-uint32_t calculateRTT(struct timespec* timestamp) {
+uint32_t calculateRTT(struct timespec *timestamp) {
   struct timespec current;
   if (clock_gettime(CLOCK_REALTIME, &current)) {
     perror("Couldn't get current timestamp for RTT calculation");

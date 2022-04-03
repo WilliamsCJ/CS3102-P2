@@ -3,8 +3,8 @@
 //
 #include <inttypes.h>
 #include <signal.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/time.h>
 
 #include "sigalrm.h"
@@ -14,7 +14,6 @@ struct sigaction G_sigalrm;
 
 /* timer value */
 struct itimerval G_timer;
-
 
 /*
  * Function: setITIMER
@@ -32,7 +31,7 @@ int setITIMER(uint32_t sec, uint32_t usec) {
   G_timer.it_value.tv_sec = sec;
   G_timer.it_value.tv_usec = usec;
 
-  return setitimer(ITIMER_REAL, &G_timer, (struct itimerval *) 0);
+  return setitimer(ITIMER_REAL, &G_timer, (struct itimerval *)0);
 }
 
 /*
@@ -45,14 +44,14 @@ int setITIMER(uint32_t sec, uint32_t usec) {
  * saleem, Jan2004
  * saleem, Nov2002
  */
-void setupSIGALRM(void(*handler)(int)) {
+void setupSIGALRM(void (*handler)(int)) {
   sigaddset(&G_sigmask, SIGALRM);
 
   G_sigalrm.sa_handler = handler;
   G_sigalrm.sa_flags = 0;
 
   /* TODO: Change error handling */
-  if (sigaction(SIGALRM, &G_sigalrm, (struct sigaction *) 0) < 0) {
+  if (sigaction(SIGALRM, &G_sigalrm, (struct sigaction *)0) < 0) {
     perror("setupSIGALRM(): sigaction() problem");
     exit(0);
   }
