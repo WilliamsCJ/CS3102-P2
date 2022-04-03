@@ -1,6 +1,7 @@
 //
 // Created by CJ Williams on 20/02/2022.
 //
+#include <inttypes.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -25,7 +26,7 @@ struct itimerval G_timer;
  * saleem, Jan2004
  * saleem, Nov2002
  */
-int setITIMER(unsigned int sec, unsigned int usec) {
+int setITIMER(uint32_t sec, uint32_t usec) {
   G_timer.it_interval.tv_sec = 0;
   G_timer.it_interval.tv_usec = 0;
   G_timer.it_value.tv_sec = sec;
