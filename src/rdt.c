@@ -32,7 +32,7 @@ bool              G_checksum_match;             // Flag for packet checksum matc
 int               G_retries = 0;                // Global retries counter.
 int               G_state = RDT_STATE_CLOSED;   // Global FSM state.
 uint32_t          G_seq_no = 0;                 // Sequence number.
-bool              G_debug = false;              // Debug output flag.
+bool              G_debug = true;              // Debug output flag.
 /* GLOBAL VARIABLES END */
 
 
@@ -332,7 +332,7 @@ void handleSIGALRM(int sig) {
     sigprocmask(SIG_BLOCK, &G_sigmask, (sigset_t *) 0);
 
     /* Send a packet */
-    fsm(RDT_EVENT_TIMEOUT_2MSL);
+    fsm(RDT_EVENT_RTO);
 
     /* protect handler actions from signals */
     sigprocmask(SIG_UNBLOCK, &G_sigmask, (sigset_t *) 0);
@@ -408,7 +408,7 @@ void fsm(int input) {
           break;
         }
         /* TIMEOUT */
-        case RDT_EVENT_TIMEOUT_2MSL: {
+        case RDT_EVENT_RTO: {
           G_state = RDT_STATE_CLOSED;
 
           if (G_retries >= 10) {
@@ -433,10 +433,9 @@ void fsm(int input) {
           G_packet = createPacket(DATA, G_seq_no, G_buf);
 
           /* Calculate RTO based on previous RTT, or use default value of 1s. */
+          uint32_t curr_rto = T_rto;
           if (G_seq_no == 0) {
-            uint32_t rto = MIN_RTO;
-          } else {
-            uint32_t rto = T_rto;
+            curr_rto = MIN_RTO;
           }
 
           /* Start RTT timer. */
@@ -445,8 +444,11 @@ void fsm(int input) {
           }
 
           /* Send packet and set ITIMER for RTO */
+          printf("rto: %u\n", curr_rto);
+          printf("sec: %u\n", RTO_TO_SEC(curr_rto));
+          printf("usec: %u\n", RTO_TO_USEC(curr_rto));
           sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t) + ntohs(G_packet->header.size));
-          if (setITIMER(0, rto) != 0) {
+          if (setITIMER(RTO_TO_SEC(curr_rto), RTO_TO_USEC(curr_rto)) != 0) {
             perror("Couldn't set RTO");
           }
 
@@ -570,11 +572,11 @@ void fsm(int input) {
         }
 
         /* RTO */
-        case RDT_EVENT_TIMEOUT_2MSL: {
+        case RDT_EVENT_RTO: {
           if (G_retries < RDT_MAX_RETRIES) {
             G_retries++;  // Increment retries counter
             G_seq_no -= G_prev_size;  // Reduce sequence number to last ACK'd.
-            T_rto = T_rto * 2;  // Double RTO
+            T_rto = T_rto * 2 > MAX_RTO ? MAX_RTO : T_rto * 2;  // Double RTO
             goto send;
           }
 
@@ -592,7 +594,7 @@ void fsm(int input) {
           G_state = RDT_STATE_CLOSED;
           break;
         }
-        case RDT_EVENT_TIMEOUT_2MSL: {
+        case RDT_EVENT_RTO: {
           if (G_retries < 10) {
             G_retries++;
             goto close;

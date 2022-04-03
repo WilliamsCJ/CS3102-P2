@@ -31,7 +31,7 @@
 #define RDT_EVENT_RCV_ACK         ((int) 14)
 #define RDT_EVENT_RCV_FIN         ((int) 15)
 #define RDT_EVENT_RCV_FIN_ACK     ((int) 16)
-#define RDT_EVENT_TIMEOUT_2MSL    ((int) 17)
+#define RDT_EVENT_RTO             ((int) 17)
 
 #define RDT_STATE_CLOSED          ((int) 18)
 #define RDT_STATE_LISTEN          ((int) 19)
@@ -60,7 +60,7 @@ static const char* fsm_strings[] = {
     "rcv ACK",
     "rcv FIN",
     "rcv FIN_ACK",
-    "timeout=2msl",
+    "RTO",
     "CLOSE",
     "LISTEN",
     "SYN_SENT",

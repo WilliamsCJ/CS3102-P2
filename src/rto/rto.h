@@ -10,6 +10,9 @@
 
 #define MIN_RTO ((uint32_t)  1000000) //  1s in microseconds
 #define MAX_RTO ((uint32_t) 60000000) // 60s in microseconds
+#define RTO_TO_SEC(v_) ((uint32_t) v_ / 1000000)
+#define RTO_TO_USEC(v_) ((uint32_t) v_ % 1000000)
+#define US_TO_MS(v_) ((float) v_ / (float) 1000.0) // us to ms
 
 extern uint32_t T_rto;
 

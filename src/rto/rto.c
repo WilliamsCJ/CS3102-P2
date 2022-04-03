@@ -2,6 +2,7 @@
 // 190010906, March 2022.
 //
 #include <inttypes.h>
+#include <stdio.h>
 #include <time.h>
 
 #include "rto.h"
@@ -22,7 +23,7 @@ uint32_t T_rto = 0;
  * @param r Measured rtt.
  * @return uint32_t current RTT.
  */
-uint32_t calculateRTO(uint32_t r) {
+uint32_t calculateRTO(uint32_t r_n) {
   if (T_rto == 0) {
     /*
       The first measurement of RTT
@@ -71,14 +72,9 @@ uint32_t calculateRTT(struct timespec* timestamp) {
     perror("Couldn't get current timestamp for RTT calculation");
   }
 
-  uint32_t sec = current.tv_nsec - timestamp->tv_sec;
-
+  uint32_t sec = current.tv_sec - timestamp->tv_sec;
   uint32_t rtt = (current.tv_nsec - timestamp->tv_nsec) / 1000;
-  if (rtt > 999) {
-    sec += 1;
-    rtt = 0;
-  }
-
   rtt += sec * 1e6;
+
   return rtt;
 }
