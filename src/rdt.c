@@ -24,6 +24,8 @@ RdtPacket_t*      G_packet;                     // Outbound packet.
 
 struct timespec   G_timestamp;                  // Timestamp used for calculating RTT for variable retransmission.
 
+uint32_t          G_seq_init;                   // Initial sequence number.
+uint32_t          G_seq_no;                     // Current sequence number.
 uint32_t          G_rtt;                        // RTT for last segment in microseconds (us).
 uint8_t*          G_buf;                        // Data buffer for sending or receiving.
 uint32_t          G_buf_size;                   // Size of buf.
@@ -33,7 +35,6 @@ bool              G_checksum_match;             // Flag for packet checksum matc
 int               G_errors  = 0;                // Error counter. Will cause transmission to stop if too many errors encountered.
 int               G_retries = 0;                // Global retries counter.
 int               G_state   = RDT_STATE_CLOSED; // Global FSM state.
-uint32_t          G_seq_no  = 0;                // Sequence number.
 bool              G_debug   = false;            // Debug output flag.
 bool              G_sender  = false;            // Whether in send or receive mode.
 /* GLOBAL VARIABLES END */
@@ -79,6 +80,9 @@ void rdtSend(RdtSocket_t* socket, const void* buf, uint32_t n) {
   G_buf = (uint8_t*) buf;
   G_buf_size = n;
   G_sender = true;
+
+  /* Seed srand */
+  srandom(time(NULL));
 
   printf("Connecting to remote host...\n");
   rdtOpen(socket);
@@ -250,13 +254,12 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
   return packet;
 }
 
-// TODO: Is the right return value?
 /**
  * Sends an RdtPacket_t over the specified RdtSocket.
  * @param socket The socket to send the packet over.
  * @param packet Pointer to the packet to send.
  * @param n The size of 'packet' (header + data).
- * @return TODO: What?
+ * @return Number of bytes sent.
  */
 int sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint16_t n) {
   UdpBuffer_t buffer;
@@ -287,7 +290,7 @@ RdtPacket_t* createPacket(RDTPacketType_t type, uint32_t seq_no, uint8_t* data) 
 
   /* Calculate the header field value */
   if (data != NULL) {
-    uint32_t diff = G_buf_size - G_seq_no;
+    uint32_t diff = G_buf_size - (G_seq_no - G_seq_init);
 
     if (diff > RDT_MAX_SIZE) {
       n = RDT_MAX_SIZE;
@@ -295,7 +298,7 @@ RdtPacket_t* createPacket(RDTPacketType_t type, uint32_t seq_no, uint8_t* data) 
       n = diff;
     }
 
-    memcpy(&packet->data, data+G_seq_no, n);
+    memcpy(&packet->data, data + (G_seq_no - G_seq_init), n);
   }
 
   /* Set header size and checksum */
@@ -362,7 +365,7 @@ void handleSIGALRM(int sig) {
  * @param input
  */
 void fsm(int input) {
-  DEBUG("fsm: old_state=%-12s input=%-12s seq=%u/%-8u ", fsm_strings[G_state], fsm_strings[input], G_seq_no, G_buf_size);
+  DEBUG("fsm: old_state=%-12s input=%-12s seq=%u/%-8u ", fsm_strings[G_state], fsm_strings[input], (G_seq_no - G_seq_init), G_buf_size);
   int r, size;
   int output = 0;
 
@@ -381,8 +384,10 @@ void fsm(int input) {
         /* ACTIVE OPEN */
         open:
         case RDT_INPUT_ACTIVE_OPEN: {
-          // TODO: Random
-          G_seq_no = 0; // Set seq_no to 0 as we are starting a new transmission.
+          /* Set G_seq_init and G_seq_no to a random starter value,
+           * to minimise "old" packet ambiguity/predictability */
+          G_seq_init = (uint32_t) random();
+          G_seq_no = G_seq_init;
 
           /* If this is the first attempt, set RTO to 200ms */
           if (T_rto == 0) {
@@ -425,10 +430,11 @@ void fsm(int input) {
         syn:
         case RDT_EVENT_RCV_SYN: {
           /* Set sequence number to received sequence number */
-          G_seq_no = received->header.sequence;
+          G_seq_init = received->header.sequence;
+          G_seq_no = G_seq_init;
 
           /* Create and send SYN ACK packet */
-          G_packet = createPacket(SYN_ACK, G_seq_no, NULL);
+          G_packet = createPacket(SYN_ACK, G_seq_init, NULL);
           size = sizeof(RdtHeader_t);
           if (sendRdtPacket(G_socket, G_packet, size) != size) {
             errno = ECOMM;
@@ -519,7 +525,7 @@ void fsm(int input) {
 
           /* Calculate RTO based on previous RTT, or use default value of 1s. */
           uint32_t curr_rto = T_rto;
-          if (G_seq_no == 0) {
+          if (G_seq_no == G_seq_init) {
             curr_rto = MIN_RTO;
           }
 
@@ -596,12 +602,12 @@ void fsm(int input) {
             G_buf = (uint8_t*) calloc(1, G_buf_size);
             memcpy(G_buf, &(received->data), G_buf_size);
           } else {
-            if (G_buf_size < G_seq_no + received->header.size) {
+            if (G_buf_size < (G_seq_no - G_seq_init) + received->header.size) {
               G_buf = (uint8_t*) realloc(G_buf, G_buf_size * 2);
               G_buf_size = G_buf_size * 2;
             }
 
-            memcpy(G_buf+G_seq_no, &(received->data), received->header.size);
+            memcpy(G_buf + (G_seq_no - G_seq_init), &(received->data), received->header.size);
           }
 
           G_seq_no += received->header.size;
@@ -657,7 +663,7 @@ void fsm(int input) {
             perror("Error sending RDT packet.");
             if (G_errors++ > RDT_MAX_ERROR) exit(errno);
           }
-          
+
           G_state = RDT_STATE_CLOSED;
           output = RDT_ACTION_SND_FIN_ACK;
           free(G_packet);
@@ -685,10 +691,12 @@ void fsm(int input) {
           calculateRTO(G_rtt);
 
           /* If the whole buffer hasn't been sent, send the next packet. */
-          if (G_seq_no < G_buf_size) {
+          if ((G_seq_no - G_seq_init) < G_buf_size) {
             if (received->header.sequence < G_seq_no) {
               G_seq_no = received->header.sequence;
             }
+
+            // TODO: Check it's not less
             G_retries = 0;
             goto send;
           }
