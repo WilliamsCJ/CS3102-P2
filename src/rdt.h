@@ -12,6 +12,7 @@
 
 /* MACROS START */
 #define RDT_MAX_SIZE              ((uint16_t) 1300)
+#define RDT_MAX_ERROR             ((int) 5)
 #define RDT_MAX_RETRIES           ((int) 5)
 #define RDT_TIMEOUT_200MS         (200000)
 /* MACROS END */

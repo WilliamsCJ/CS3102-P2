@@ -1,6 +1,7 @@
 // Copyright 2022 190010906
 //
 #include <arpa/inet.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -29,11 +30,12 @@ uint32_t          G_buf_size;                   // Size of buf.
 uint16_t          G_prev_size;                  // Size of previous packet sent.
 bool              G_checksum_match;             // Flag for packet checksum match.
 
+int               G_errors  = 0;                // Error counter. Will cause transmission to stop if too many errors encountered.
 int               G_retries = 0;                // Global retries counter.
-int               G_state = RDT_STATE_CLOSED;   // Global FSM state.
-uint32_t          G_seq_no = 0;                 // Sequence number.
-bool              G_debug = false;              // Debug output flag.
-bool              G_sender = false;             // Whether in send or receive mode.
+int               G_state   = RDT_STATE_CLOSED; // Global FSM state.
+uint32_t          G_seq_no  = 0;                // Sequence number.
+bool              G_debug   = false;            // Debug output flag.
+bool              G_sender  = false;            // Whether in send or receive mode.
 /* GLOBAL VARIABLES END */
 
 
@@ -258,11 +260,9 @@ RdtPacket_t* recvRdtPacket(RdtSocket_t* socket) {
  */
 int sendRdtPacket(const RdtSocket_t* socket, RdtPacket_t* packet, const uint16_t n) {
   UdpBuffer_t buffer;
-  int r;
-  int size = sizeof(RdtHeader_t) + n;
-  uint8_t bytes[size];
+  uint8_t bytes[n];
 
-  memcpy(bytes, packet, size);
+  memcpy(bytes, packet, n);
   buffer.n = n;
   buffer.bytes = bytes;
 
@@ -363,7 +363,7 @@ void handleSIGALRM(int sig) {
  */
 void fsm(int input) {
   DEBUG("fsm: old_state=%-12s input=%-12s seq=%u/%-8u ", fsm_strings[G_state], fsm_strings[input], G_seq_no, G_buf_size);
-  int r, error;
+  int r, size;
   int output = 0;
 
   /* If RST is ever received as input, close the connection immediately. */
@@ -391,7 +391,12 @@ void fsm(int input) {
 
           /* Create and send SYN packet */
           G_packet = createPacket(SYN, G_seq_no, NULL);
-          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+          size = sizeof(RdtHeader_t);
+          if (sendRdtPacket(G_socket, G_packet, size) != size) {
+            errno = ECOMM;
+            perror("Error sending RDT packet.");
+            if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+          }
 
           /* Set ITIMER to RTO, starting from 200ms for handshake */
           if (setITIMER(RTO_TO_SEC(T_rto), RTO_TO_USEC(T_rto)) != 0) {
@@ -424,7 +429,12 @@ void fsm(int input) {
 
           /* Create and send SYN ACK packet */
           G_packet = createPacket(SYN_ACK, G_seq_no, NULL);
-          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+          size = sizeof(RdtHeader_t);
+          if (sendRdtPacket(G_socket, G_packet, size) != size) {
+            errno = ECOMM;
+            perror("Error sending RDT packet.");
+            if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+          }
 
           /* Update state and set output flag */
           G_state = RDT_STATE_ESTABLISHED;
@@ -437,7 +447,12 @@ void fsm(int input) {
         default: {
           /* Create and send RST */
           G_packet = createPacket(RST, 0, NULL);
-          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+          size = sizeof(RdtHeader_t);
+          if (sendRdtPacket(G_socket, G_packet, size) != size) {
+            errno = ECOMM;
+            perror("Error sending RDT packet.");
+            if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+          }
 
           /* Remain in LISTEN state */
           G_state = RDT_STATE_CLOSED;
@@ -474,7 +489,12 @@ void fsm(int input) {
         default: {
           /* Create and send RST */
           G_packet = createPacket(RST, 0, NULL);
-          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+          size = sizeof(RdtHeader_t);
+          if (sendRdtPacket(G_socket, G_packet, size) != size) {
+            errno = ECOMM;
+            perror("Error sending RDT packet.");
+            if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+          }
 
           /* Remain in SYN_SENT state */
           G_state = RDT_STATE_SYN_SENT;
@@ -508,8 +528,15 @@ void fsm(int input) {
             perror("Couldn't start RTT timer.");
           }
 
-          /* Send packet and set ITIMER for RTO */
-          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t) + ntohs(G_packet->header.size));
+          /* Send packet*/
+          size = sizeof(RdtHeader_t) + ntohs(G_packet->header.size);
+          if (sendRdtPacket(G_socket, G_packet, size) != size) {
+            errno = ECOMM;
+            perror("Error sending RDT packet.");
+            if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+          }
+
+          /* Set ITIMER for RTO. */
           if (setITIMER(RTO_TO_SEC(curr_rto), RTO_TO_USEC(curr_rto)) != 0) {
             perror("Couldn't set RTO");
           }
@@ -526,10 +553,17 @@ void fsm(int input) {
         /* RECEIVE DATA */
         case RDT_EVENT_RCV_DATA: {
           if (!G_checksum_match) {
-            RdtPacket_t* packet = createPacket(ACK, G_seq_no, NULL);
-            sendRdtPacket(G_socket, packet, sizeof(RdtHeader_t));
+            /* Create and send ACK packet */
+            G_packet = createPacket(ACK, G_seq_no, NULL);
+            size = sizeof(RdtHeader_t);
+            if (sendRdtPacket(G_socket, G_packet, size) != size) {
+              errno = ECOMM;
+              perror("Error sending RDT packet.");
+              if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+            }
+
             output = RDT_ACTION_SND_ACK;
-            free(packet);
+            free(G_packet);
             break;
           }
 
@@ -541,10 +575,18 @@ void fsm(int input) {
           /* ACK the expected sequence number if received sequence number is greater
            * than expected. This means a DATA packet has likely been dropped */
           if (received->header.sequence > G_seq_no) {
-            RdtPacket_t* packet = createPacket(ACK, G_seq_no, NULL);
-            sendRdtPacket(G_socket, packet, sizeof(RdtHeader_t));
+            /* Create and send packet */
+            G_packet = createPacket(ACK, G_seq_no, NULL);
+            size = sizeof(RdtHeader_t);
+            if (sendRdtPacket(G_socket, G_packet, size) != size) {
+              errno = ECOMM;
+              perror("Error sending RDT packet.");
+              if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+            }
+
+            /* Set output flag */
             output = RDT_ACTION_SND_ACK;
-            free(packet);
+            free(G_packet);
             break;
           }
 
@@ -563,12 +605,17 @@ void fsm(int input) {
           }
 
           G_seq_no += received->header.size;
-          RdtPacket_t* packet = createPacket(ACK, G_seq_no, NULL);
-          sendRdtPacket(G_socket, packet, sizeof(RdtHeader_t));
+          G_packet = createPacket(ACK, G_seq_no, NULL);
+          size = sizeof(RdtHeader_t);
+          if (sendRdtPacket(G_socket, G_packet, size) != size) {
+            errno = ECOMM;
+            perror("Error sending RDT packet.");
+            if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+          }
 
           G_state = RDT_STATE_ESTABLISHED;
           output = RDT_ACTION_SND_ACK;
-          free(packet);
+          free(G_packet);
           break;
         }
 
@@ -581,12 +628,19 @@ void fsm(int input) {
           }
 
           G_packet = createPacket(FIN, G_seq_no, NULL);
-          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
-          if (setITIMER(0, RDT_TIMEOUT_200MS) != 0) {
+          size = sizeof(RdtHeader_t);
+          if (sendRdtPacket(G_socket, G_packet, size) != size) {
+            errno = ECOMM;
+            perror("Error sending RDT packet.");
+            if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+          }
+
+          /* Set ITIMER for RTO */
+          // TODO: Do properly
+          if (setITIMER(RTO_TO_SEC(T_rto), RTO_TO_USEC(T_rto)) != 0) {
             perror("Couldn't set timeout");
           }
 
-          G_retries = 0;
           G_state = RDT_STATE_FIN_SENT;
           output = RDT_ACTION_SND_FIN;
           free(G_packet);
@@ -595,9 +649,15 @@ void fsm(int input) {
 
         /* RECEIVE FIN */
         case RDT_EVENT_RCV_FIN: {
+          /* Create and send FIN ACK packet */
           G_packet = createPacket(FIN_ACK, received->header.sequence, NULL);
-
-          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+          size = sizeof(RdtHeader_t);
+          if (sendRdtPacket(G_socket, G_packet, size) != size) {
+            errno = ECOMM;
+            perror("Error sending RDT packet.");
+            if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+          }
+          
           G_state = RDT_STATE_CLOSED;
           output = RDT_ACTION_SND_FIN_ACK;
           free(G_packet);
@@ -635,6 +695,7 @@ void fsm(int input) {
 
           /* If whole buffer has been sent, return to the established state. */
           G_state = RDT_STATE_ESTABLISHED;
+          G_retries = 0;
 
           /* Set RTO to 0 for termination */
           T_rto = 0;
@@ -681,19 +742,33 @@ void fsm(int input) {
             goto close;
           }
 
+          /* Create and send packet */
           G_packet = createPacket(RST, 0, NULL);
-          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+          size = sizeof(RdtHeader_t);
+          if (sendRdtPacket(G_socket, G_packet, size) != size) {
+            errno = ECOMM;
+            perror("Error sending RDT packet.");
+            if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+          }
+
+          /* Update state, etc */
           G_state = RDT_STATE_CLOSED;
           output = RDT_ACTION_SND_RST;
           free(G_packet);
-          printf("Unable to terminate gracefully. Terminating abruptly!");
+          printf("Unable to terminate gracefully. Terminating abruptly!\n");
           break;
         }
 
         /* DEFAULT */
         default: {
           G_packet = createPacket(RST, 0, NULL);
-          sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+          size = sizeof(RdtHeader_t);
+          if (sendRdtPacket(G_socket, G_packet, size) != size) {
+            errno = ECOMM;
+            perror("Error sending RDT packet.");
+            if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+          }
+
           G_state = RDT_STATE_CLOSED;
           output = RDT_ACTION_SND_RST;
           free(G_packet);
@@ -703,8 +778,16 @@ void fsm(int input) {
       break;
 
     default:
+      /* Create and send RST packet */
       G_packet = createPacket(RST, 0, NULL);
-      sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t));
+      size = sizeof(RdtHeader_t);
+      if (sendRdtPacket(G_socket, G_packet, size) != size) {
+        errno = ECOMM;
+        perror("Error sending RDT packet.");
+        if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+      }
+
+      /* Update state etc */
       G_state = RDT_STATE_CLOSED;
       output = RDT_ACTION_SND_RST;
       free(G_packet);
