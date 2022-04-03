@@ -32,7 +32,8 @@ bool              G_checksum_match;             // Flag for packet checksum matc
 int               G_retries = 0;                // Global retries counter.
 int               G_state = RDT_STATE_CLOSED;   // Global FSM state.
 uint32_t          G_seq_no = 0;                 // Sequence number.
-bool              G_debug = true;              // Debug output flag.
+bool              G_debug = false;              // Debug output flag.
+bool              G_sender = false;             // Whether in send or receive mode.
 /* GLOBAL VARIABLES END */
 
 
@@ -40,9 +41,10 @@ bool              G_debug = true;              // Debug output flag.
 
 void fsm(int input);
 void rdtOpen(RdtSocket_t* socket);
-void rdtClose(RdtSocket_t* socket);
+void rdtClose();
 void handleSIGALRM(int sig);
 void handleSIGIO(int sig);
+void printProgress(int input);
 int rdtTypeToRdtEvent(RDTPacketType_t type);
 
 /* API START */
@@ -74,6 +76,7 @@ RdtSocket_t* openRdtSocket(const char* hostname, const uint16_t port) {
 void rdtSend(RdtSocket_t* socket, const void* buf, uint32_t n) {
   G_buf = (uint8_t*) buf;
   G_buf_size = n;
+  G_sender = true;
 
   printf("Connecting to remote host...\n");
   rdtOpen(socket);
@@ -87,12 +90,13 @@ void rdtSend(RdtSocket_t* socket, const void* buf, uint32_t n) {
   fsm(RDT_INPUT_SEND);
 
   // TODO: Check that the buffer has been completely sent
-  while(G_state != RDT_STATE_ESTABLISHED || G_state != RDT_STATE_CLOSED) {
+  while(G_state != RDT_STATE_ESTABLISHED && G_state != RDT_STATE_CLOSED) {
     (void) pause(); // Wait for signal
   }
+  printf("Finished!\n");
 
   rdtClose();
-  printf("Done!\n");
+  printf("Bye!\n");
 }
 
 /**
@@ -407,6 +411,7 @@ void fsm(int input) {
       switch (input) {
 
         /* RCV SYN */
+        syn:
         case RDT_EVENT_RCV_SYN: {
           /* Set sequence number to received sequence number */
           G_seq_no = received->header.sequence;
@@ -483,9 +488,6 @@ void fsm(int input) {
           }
 
           /* Send packet and set ITIMER for RTO */
-          printf("rto: %u\n", curr_rto);
-          printf("sec: %u\n", RTO_TO_SEC(curr_rto));
-          printf("usec: %u\n", RTO_TO_USEC(curr_rto));
           sendRdtPacket(G_socket, G_packet, sizeof(RdtHeader_t) + ntohs(G_packet->header.size));
           if (setITIMER(RTO_TO_SEC(curr_rto), RTO_TO_USEC(curr_rto)) != 0) {
             perror("Couldn't set RTO");
@@ -581,6 +583,11 @@ void fsm(int input) {
           break;
         }
 
+        /* RECEIVE SYN */
+        case RDT_EVENT_RCV_SYN: {
+          goto syn;
+        }
+
       }
       break;
 
@@ -641,10 +648,11 @@ void fsm(int input) {
         /* RECEIVE FIN ACK */
         case RDT_EVENT_RCV_FIN_ACK: {
           G_state = RDT_STATE_CLOSED;
+          printf("Connection terminated gracefully!\n");
           break;
         }
 
-        /* RTO */ 
+        /* RTO */
         case RDT_EVENT_RTO: {
           if (G_retries < RDT_MAX_RETRIES) {
             G_retries++;
@@ -654,6 +662,7 @@ void fsm(int input) {
 
           // TODO: SEND RST
           G_state = RDT_STATE_CLOSED;
+          printf("Unable to terminate gracefully. Terminating abruptly!");
           break;
         }
 
@@ -673,6 +682,7 @@ void fsm(int input) {
   }
 
   DEBUG("new_state=%-12s output=%-12s \n", fsm_strings[G_state], fsm_strings[output]);
+  printProgress(input);
 }
 
 /**
@@ -690,6 +700,27 @@ int rdtTypeToRdtEvent(RDTPacketType_t type) {
     case FIN: return RDT_EVENT_RCV_FIN;
     case FIN_ACK: return RDT_EVENT_RCV_FIN_ACK;
     default: return RDT_INVALID;
+  }
+}
+
+/**
+ * Prints progress for sender.
+ */
+void printProgress(int input) {
+  if (G_sender && G_state == RDT_STATE_DATA_SENT && input == RDT_EVENT_RCV_ACK) {
+    double progress = (double) (((double) G_seq_no / (double) G_buf_size)) * 100.0;
+    if (progress > 0.0 && !G_debug) {
+      printf("\b\b\b\b\b\b\b\b");
+    }
+    printf("%.1f%%", progress);
+    if (G_debug) {
+      printf("\n");
+    } else {
+      fflush(stdout);
+    }
+    if (progress == 100.0) {
+      printf("\n");
+    }
   }
 }
 /* OTHER END */
