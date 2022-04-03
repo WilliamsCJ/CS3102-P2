@@ -489,6 +489,19 @@ void fsm(int input) {
             T_rto = T_rto * 2 > MAX_RTO ? MAX_RTO : T_rto * 2;  // Double RTO
             goto open;
           }
+
+          G_packet = createPacket(RST, 0, NULL);
+          size = sizeof(RdtHeader_t);
+          if (sendRdtPacket(G_socket, G_packet, size) != size) {
+            errno = ECOMM;
+            perror("Error sending RDT packet.");
+            if (G_errors++ > RDT_MAX_ERROR) exit(errno);
+          }
+
+          output = RDT_ACTION_SND_RST;
+          free(G_packet);
+          G_state = RDT_STATE_CLOSED;
+          break;
         }
 
         /* DEFAULT / ALL OTHER PACKET TYPES */

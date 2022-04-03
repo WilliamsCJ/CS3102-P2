@@ -3,7 +3,8 @@
 \usepackage{graphicx}
 \usepackage{listings}
 
-\setlength{\parindent}{0em}
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{1em}
 
 \def\code#1{\texttt{#1}}
 
@@ -30,45 +31,64 @@ The protocol in question is called RDT - Reliable Data Transport
 
 \section{Design}
 
-This section will describe the design of the RDT protocol and the considerations that informed this design.
+Given the scope of the practical, simplicity was the main goal when considering the design of the RDT protocol.
+
 
 \subsection{Packet Structure}
 
-RDT packets are constructed with the following structure:
+RDT packets (see Figure~\ref{fig:packet}) are composed of a constant 12 byte header and an optional data segment. The size of the data segment ranges from 0 to 1300 bytes, with 1300 bytes used as the maximum size so as not to interfere with the operation of \code{slurpe-3}, which was used for testing. \textbf{Theoretical maximum size?}.
 
 \begin{figure}[h]
 \begin{verbatim}
- 0                   1                   2                   3  
- 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|            Sequence           |              Type             |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|              Size             |            Checksum           |
+|   Header (12 Bytes)   |         Data (0 - 1300 Bytes)         |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 \end{verbatim}
-\caption{RDT Header}
+\caption{RDT Packet Structure}\label{fig:packet}
 \end{figure}
 
-The \texttt{type} field contains one following values, denoting the type of the packet:
+The RDT header (see Figure~\ref{fig:header}) is comprised of the following fields: a 32-bit \code{sequence} field, used for \textbf{what?}; a 16-bit \code{type} field, used to denote the packet function (see Figure); a 16-bit \code{checksum} field, calculated over the header and data segment to \textbf{what?}; a 16-bit \code{size} field denoting the size of the data segment (in bytes); and a 16-bit \code{padding} field to ensure 32-bit word alignment.
 
-\begin{itemize}
-    \item 0 - SYN.
-    \item 1 - SYN ACK
-    \item 2 - DATA
-    \item 3 - DATA ACK 
-    \item 4 - FIN 
-    \item 5 - FIN ACK
-\end{itemize}
+Several factors influenced the RDT header design. As the \textbf{C library function} \code{ftell} (used to calculating file sizes in \code{RdtClient.c}) returns 32-bit \code{long} values, a 32-bit \code{sequence} field was required to support the transmission of large files/amounts of data. The given implentation of the IPv4 header checksum used returns a \code{uint16\char`_t} value, thus necessitating a 16-bit field. As a maximum data segment size of 1300 bytes was required, at least 11 bits were required for the \code{size} field, however 16 bits were used for alignment. For the remaining \code{type} and \code{padding} fields, there were no other considerations for field size other than 32-bit alignment. 
 
-This approach was chosen over a flag-based approach, as it makes it easier to check packet type and there were only a small number of types to define given the simple nature of the protocol.
+\begin{figure}
+    \begin{verbatim}
+     0                   1                   2                   3  
+     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                            Sequence                           |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |              Type             |            Checksum           |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |              Size             |            Padding            |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    \end{verbatim}
+    \caption{RDT Header}\label{fig:header}
+    \end{figure}
 
-32 bit values for were chosen for sequence and size as long data type often used for file sizes, and subsequently need to have 32 bit for sequence as product of buffer size. 
+A single type field was chosen, rather than a set TCP-style flags, for simplicity. Given the minimal nature of the RDT protocol, it was faster simpler to enumerate all packet types (see Figure), rather than testing multiple flags.
+
+The type field supports the following types: \code{SYN} (0) and \code{SYN ACK} (1), used for the connection handshake; \code{DATA} (2) and \code{ACK} (3), used for sending and acknowledging data segments; \code{FIN} (4) and \code{FIN ACK} (5), used for graceful connection termination; and \code{RST} (6), used for abrupt connection termination.
+
+
+\subsection{Connection Management}
+
+The operation of the RDT protocol can be modelled by the FSM in Figure \ref{fig:fsm}. For connection management, a two-way handshake is used. As RDT only supports uni-directional communication, a two-way handshake is adequate for establishing and terminating connections.
+
+\begin{figure}[h]
+\begin{center}
+    \includegraphics[width=120mm]{images/fsm.png}
+\end{center}
+\caption{Finite State Machine}\label{fig:fsm}
+\end{figure}
+
+\subsection{Connection Management}
+
+
 
 200 ms is used initially for the handshake RTO, as packet is only 12 bytes.
 
 Server timeouts not required.
-
-\subsection{Finite State Machine}
 
 \input{testing}
 
