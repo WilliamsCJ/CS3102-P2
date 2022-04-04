@@ -65,10 +65,10 @@ int main(int argc, char* argv[]) {
       return -1;
     }
 
-    double time = (double) end.tv_sec - (double) end.tv_sec;
-    time += ((double) end.tv_nsec - (double) end.tv_nsec) / 10e9;
+    double time = (double) end.tv_sec - (double) start.tv_sec;
+    time += ((double) end.tv_nsec - (double) start.tv_nsec) / 10e9;
 
-    printf("Total time %.3fs\n", time);
+    printf("Transmission Time: %.6fs\n", time);
   }
 
   /* Clean up and return */

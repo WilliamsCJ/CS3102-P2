@@ -29,6 +29,7 @@ uint32_t          G_seq_no;                     // Current sequence number.
 uint32_t          G_rtt;                        // RTT for last segment in microseconds (us).
 uint8_t*          G_buf;                        // Data buffer for sending or receiving.
 uint32_t          G_buf_size;                   // Size of buf.
+uint32_t          G_rcv_bytes;                  // Number of bytes received.
 uint16_t          G_prev_size;                  // Size of previous packet sent.
 bool              G_checksum_match;             // Flag for packet checksum match.
 
@@ -637,6 +638,7 @@ void fsm(int input) {
           }
 
           G_seq_no += received->header.size;
+          G_rcv_bytes += received->header.size;
           G_packet = createPacket(ACK, G_seq_no, NULL);
           size = sizeof(RdtHeader_t);
           if (sendRdtPacket(G_socket, G_packet, size) != size) {

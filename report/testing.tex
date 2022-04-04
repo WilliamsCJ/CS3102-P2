@@ -4,11 +4,11 @@ To test and verify the correct operation of RDT, two test programs \code{RdtClie
 
 \subsection{Methodology}
 
-To test that RDT packets were delivered reliably and in-order, a sufficiently large JPEG file (\emph{dog.jpg}) was used as test file. This provided visible feedback as to the integrity of the data received by \code{RdtServer}. This integrity was also verified by calculating SHA1 checksums of both the sent and received files. \code{slurpe-3} was used to provide an emulated path with loss, delay and restricted data rate to test the reliability of RDT in austere network conditions.
+To test that RDT packets were delivered reliably and in-order, a sufficiently large JPEG file (\emph{dog.jpg}) was used as test file. This provided visible feedback as to the integrity of the data received by \code{RdtServer}. This integrity was also verified by calculating SHA1 checksums of both the sent and received files. \code{slurpe-3} was used to provide an emulated path with loss, delay and restricted data rate to test the reliability of RDT in degraded network conditions.
 
 \subsection{Results}
 
-From the results in Table \ref{tab:results} we can see the RDT performed as expected in a variety of austere network conditions.
+From the results in Table \ref{tab:results} and Appendix \ref{testing-screenshots} we can see the RDT performed as expected in a variety of degraded network conditions. 
 
 \begin{center}
     \begin{table}[H]
@@ -16,21 +16,21 @@ From the results in Table \ref{tab:results} we can see the RDT performed as expe
         \hline
         Scenario & In file & Out File & Match & Time \\
         \hline
-        Control & \emph{dog.jpg} & \emph{dog-control.jpg} & \checkmark  & Success \\
+        Control & \emph{dog.jpg} & \emph{dog-control.jpg} & \checkmark  & 0.002336s \\
 
-        Delay & \emph{dog.jpg} & \emph{dog-d.jpg} & \checkmark  & Success \\
+        Delay & \emph{dog.jpg} & \emph{dog-d.jpg} & \checkmark  & 12.037570s \\
 
-        Loss & \emph{dog.jpg} & \emph{dog-l.jpg} & \checkmark  & Success \\
+        Loss & \emph{dog.jpg} & \emph{dog-l.jpg} & \checkmark  & 57.010318s \\
 
-        Constrained Rata & \emph{dog.jpg} & \emph{dog-cr.jpg} & \checkmark & Success \\
+        Constrained Rate & \emph{dog.jpg} & \emph{dog-cr.jpg} & \checkmark & 0.930083s \\
 
-        Loss and Delay & \emph{dog.jpg} & \emph{dog-ld.jpg} & \checkmark & Success \\
+        Loss and Delay & \emph{dog.jpg} & \emph{dog-ld.jpg} & \checkmark & 92.969945 \\
 
-        Loss and Constrained Rate & \emph{dog.jpg} & \emph{dog-lcr.jpg}  & \checkmark & Success \\
+        Loss and Constrained Rate & \emph{dog.jpg} & \emph{dog-lcr.jpg}  & \checkmark & 64.960451s \\
 
-        Delay and Constrained Rate & \emph{dog.jpg} & \emph{dog-dcr.jpg} & \checkmark & Success \\
+        Delay and Constrained Rate & \emph{dog.jpg} & \emph{dog-dcr.jpg} & \checkmark & 13.948315s \\
 
-        Delay, Loss and Constrained Rate & \emph{dog.jpg} & \emph{dog-ldcr.jpg} & \checkmark & Success \\
+        Delay, Loss and Constrained Rate & \emph{dog.jpg} & \emph{dog-ldcr.jpg} & \checkmark & 64.960451s \\
         
         \hline
     \end{tabular}

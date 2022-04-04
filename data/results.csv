@@ -1,0 +1,9 @@
+Scenario,Time
+Control,0.002336s
+Delay,12.037570s
+Loss,57.010318s
+Constrained Rate,0.930083s
+Loss + Delay,92.969945s
+Delay + Constrained Rate,13.948315s
+Loss + Constrained Rate,66.952507s
+Loss + Delay + Constrained Rate,64.960451s

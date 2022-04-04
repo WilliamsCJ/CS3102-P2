@@ -1,14 +1,10 @@
 // Copyright 2022 190010906
 //
-#include <stdlib.h>
 #include <stdio.h>
-#include <signal.h>
 #include <unistd.h>
 #include <string.h>
 
-#include "d_print/d_print.h"
 #include "sigio/sigio.h"
-#include "sigalrm/sigalrm.h"
 #include "rdt.h"
 
 
@@ -34,8 +30,9 @@ int main(int argc, char* argv[]) {
   }
 
   rdtListen(socket);
-  fwrite(G_buf, G_buf_size, 1, pFile);
+  fwrite(G_buf, (G_seq_no - G_seq_init), 1, pFile);
 
+  printf("Received %d bytes.\n", (G_seq_no - G_seq_init));
   printf("Writing to file...\n");
 
   fclose(pFile);

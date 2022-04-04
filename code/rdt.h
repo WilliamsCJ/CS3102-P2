@@ -21,6 +21,9 @@
 /* EXTERNAL GLOBAL VARIABLES START */
 extern uint8_t* G_buf;
 extern uint32_t G_buf_size;
+extern uint32_t G_rcv_bytes;
+extern uint32_t G_seq_no;
+extern uint32_t G_seq_init;
 extern bool G_debug;
 /* EXTERNAL GLOBAL VARIABLES END */
 
