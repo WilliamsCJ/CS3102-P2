@@ -1,7 +1,39 @@
 \section{Testing}
 
-This section will detail how RDT was tested to validate correct operation.
+To test and verify the correct operation of RDT, two test programs \code{RdtClient.c} and \code{RdtServer.c} were created to send an arbitrary file between two lab PCs using RDT. 
 
 \subsection{Methodology}
 
-To test the ability of RDT to deliver packets in a reliable and ordered manner, two test programs were created. The latter was run on \textbf{pc} and the former on \textbf{pc}. Slurpe was place in the middle. A file was transmitted from A to B. Decoded with SHA.
+To test that RDT packets were delivered reliably and in-order, a sufficiently large JPEG file (\emph{dog.jpg}) was used as test file. This provided visible feedback as to the integrity of the data received by \code{RdtServer}. This integrity was also verified by calculating SHA1 checksums of both the sent and received files. \code{slurpe-3} was used to provide an emulated path with loss, delay and restricted data rate to test the reliability of RDT in austere network conditions.
+
+\subsection{Results}
+
+From the results in Table \ref{tab:results} we can see the RDT performed as expected in a variety of austere network conditions.
+
+\begin{center}
+    \begin{table}[H]
+    \begin{tabular}{|c|c|c|c|c|}
+        \hline
+        Scenario & In file & Out File & Match & Time \\
+        \hline
+        Control & \emph{dog.jpg} & \emph{dog-control.jpg} & \checkmark  & Success \\
+
+        Delay & \emph{dog.jpg} & \emph{dog-d.jpg} & \checkmark  & Success \\
+
+        Loss & \emph{dog.jpg} & \emph{dog-l.jpg} & \checkmark  & Success \\
+
+        Constrained Rata & \emph{dog.jpg} & \emph{dog-cr.jpg} & \checkmark & Success \\
+
+        Loss and Delay & \emph{dog.jpg} & \emph{dog-ld.jpg} & \checkmark & Success \\
+
+        Loss and Constrained Rate & \emph{dog.jpg} & \emph{dog-lcr.jpg}  & \checkmark & Success \\
+
+        Delay and Constrained Rate & \emph{dog.jpg} & \emph{dog-dcr.jpg} & \checkmark & Success \\
+
+        Delay, Loss and Constrained Rate & \emph{dog.jpg} & \emph{dog-ldcr.jpg} & \checkmark & Success \\
+        
+        \hline
+    \end{tabular}
+    \caption{Results for varying network conditions}\label{tab:results}
+    \end{table}
+\end{center}

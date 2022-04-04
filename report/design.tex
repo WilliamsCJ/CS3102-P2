@@ -42,11 +42,28 @@ The type field supports the following types: \code{SYN} (0) and \code{SYN ACK} (
 
 \subsection{Connection Management}
 
-The operation of the RDT protocol can be modelled by the FSM in Figure \ref{fig:fsm}. For connection management, a two-way handshake is used. As RDT only supports uni-directional communication, a two-way handshake is adequate for establishing and terminating connections.
+The operation of the RDT protocol can be modelled by the FSM in Figure \ref{fig:fsm}. For connection management, a two-way handshake is used. As RDT only supports uni-directional communication, a two-way handshake (see Figure ) is adequate for establishing and terminating connections. Adaptive re-transmission timeouts are used in both the handshakes and transmission of data segments.
 
 \begin{figure}[H]
 \begin{center}
-    \includegraphics[width=120mm]{images/fsm.png}
+    \includegraphics[width=100mm]{images/fsm.png}
 \end{center}
-\caption{Finite State Machine}\label{fig:fsm}
+\caption{RDT Finite State Machine (see also A.1)}\label{fig:fsm}
 \end{figure}
+
+An initial RTO value of 200ms is used for hanshakes, and this doubles until 5 attempts have been made before the connection is abruptly terminated with an \code{RST}.
+
+\begin{figure}[H]
+\begin{center}
+    \includegraphics[width=100mm]{images/timeline.png}
+\end{center}
+\caption{Connection Timeline Diagram (see also A.2)}\label{fig:timeline}
+\end{figure}
+    
+
+\subsection{Adaptive RTO}
+In an extension to the base specification, adaptive re-transmission timeouts using measured RTT has been implemented. RDT's adaptive RDT is modelled on TCP's Retranmission Timer \cite{rfc6298} \footnote{Clock granularity is not considered, however RTO values are calculated in microseconds and the School Lab PCs have a granularity of 1 nanosecond.}. RDT uses the same initial RTO of 1s and maximum of 60s. 
+
+
+\subsection{Checksum}
+The RDT \code{checksum} field is calculated over the entire segment/packet (i.e. header and data) using the IPv4 Header Checksum Algorithm \cite{rfc791}. The implementation of the original source \cite{ipv4_checksum} to support the use of 8-bit byte values in the data segment. During checksum calculating, the \code{checksum} field itself is set to 0 for consistency.

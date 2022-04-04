@@ -4,11 +4,15 @@
 \usepackage{graphicx}
 \usepackage{listings}
 \usepackage{float} % For placing figures.
+\usepackage[bottom]{footmisc}
+\usepackage{tikz}
 
 \setlength{\parskip}{0.5em}
 \setlength{\parindent}{1em}
 
 \def\code#1{\texttt{#1}}
+\def\checkmark{\tikz\fill[scale=0.4](0,.35) -- (.25,0) -- (1,.7) -- (.25,.15) -- cycle;} 
+
 
 % FILL IN TITLE AND AUTHOR
 \title{
@@ -33,12 +37,19 @@ The protocol in question is called RDT - Reliable Data Transport
 
 \input{design.tex}
 
-200 ms is used initially for the handshake RTO, as packet is only 12 bytes.
-
-Server timeouts not required.
-
 \input{testing}
 
 \input{analysis}
+
+\input{evaluation}
+
+\input{Conclusion}
+
+\newpage
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\newpage
+\input{appendices}
 
 \end{document}

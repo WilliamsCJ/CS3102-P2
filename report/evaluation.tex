@@ -1,0 +1,14 @@
+\section{Evaluation}
+\subsection{Extension Features}
+
+Given that RDT is implemented using UDP and uses the same checksum algorithm used by UDP, it is unlikley that RDT will ever encounter an incorrect checksum. This makes the use of a checksum in RDT mostly redundant. However the inclusion of a checksum provided some utility. Firstly, it helped to catch several errors in the initial implementation of RDT, and secondly it provided a useful. opportunity to understand the function of the Internet Checksum.
+
+The inclusion of adaptive RTO was more useful however. G
+
+\subsection{Further Extension}
+
+While the implementation of bi-directional communication and Continuous-RQ was not implemented, it is useful to consider these features in evaluating the desing of RDT.
+
+In it's current design, RDT would be unable to support simulatenous bi-directional communication, due to its use of a two-way handshake. For bi-directional communication to occur, both parties are required to choose and synchronise an 'Initial Sequence Number', which is not possible with only a two-way handshake. Therefore, to support bi-directional communication RDT would require a significant re-design.
+
+However, RDT would not require a fundamental re-design to support Continous-RQ. Continous-RQ with Go-Back-N would solve RDT's fundamental issue of low transmission rate due to link under-utilisation (see \textbf{section}).
