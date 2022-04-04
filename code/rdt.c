@@ -30,7 +30,6 @@ uint32_t          G_rtt;                        // RTT for last segment in micro
 
 uint8_t*          G_buf;                        // Data buffer for sending or receiving.
 uint32_t          G_buf_size;                   // Size of buf.
-uint32_t          G_rcv_bytes;                  // Number of bytes received.
 uint16_t          G_prev_size;                  // Size of previous packet sent.
 bool              G_checksum_match;             // Flag for packet checksum match.
 
@@ -40,7 +39,7 @@ int               G_state   = RDT_STATE_CLOSED; // Global FSM state.
 bool              G_debug   = false;            // Debug output flag.
 bool              G_sender  = false;            // Whether in send or receive mode.
 
-uint32_t          G_avg_rtt     = 1;            // Average RTT.
+double            G_avg_rtt     = 1;            // Average RTT.
 uint32_t          G_rtt_counter = 0;            // Number of times RTT average has been calculated.
 /* GLOBAL VARIABLES END */
 
@@ -642,7 +641,6 @@ void fsm(int input) {
           }
 
           G_seq_no += received->header.size;
-          G_rcv_bytes += received->header.size;
           G_packet = createPacket(ACK, G_seq_no, NULL);
           size = sizeof(RdtHeader_t);
           if (sendRdtPacket(G_socket, G_packet, size) != size) {
@@ -720,6 +718,13 @@ void fsm(int input) {
           /* Calculate the RTT in microseconds */
           G_rtt = calculateRTT(&G_timestamp);
 
+          /* Calculate averate RTT */
+          if (G_rtt_counter > 0) {
+            G_avg_rtt = (double) (G_rtt + (G_avg_rtt * G_rtt_counter)) / ++G_rtt_counter);
+          } else {
+            G_avg_rtt = (double) G_rtt;
+            G_rtt_counter = 1;
+          }
 
           /* Calculate next RTO */
           calculateRTO(G_rtt);

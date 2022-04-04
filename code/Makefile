@@ -5,15 +5,27 @@ CC		=clang
 CC-flags		=-Wall -g
 
 LIB = checksum.o sigio.o sigalrm.o UdpSocket.o d_print.o rdt.o rto.o
-PROGRAMS = RdtServer RdtClient
+PROGRAMS = RdtServer RdtClient RdtServerRTT RDTClientRTT
 
 .PHONY: clean
+
+RdtServerRTT: RdtServerRTT.o $(LIB)
+	$(CC) -o $@ $+
+
+RdtClientRTT: RdtClientRTT.o $(LIB)
+	$(CC) -o $@ $+
 
 RdtServer: RdtServer.o $(LIB)
 	$(CC) -o $@ $+
 
 RdtClient: RdtClient.o $(LIB)
 	$(CC) -o $@ $+
+
+RdtClientRTT.o: RdtClient.c
+	$(CC) -c ./RdtClientRTT.c
+
+RdtServerRTT.o: RdtServer.c
+	$(CC) -c ./RdtServerRTT.c
 
 RdtClient.o: RdtClient.c
 	$(CC) -c ./RdtClient.c

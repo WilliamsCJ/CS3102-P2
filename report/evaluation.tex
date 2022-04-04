@@ -3,7 +3,7 @@
 
 Given that RDT is implemented using UDP and uses the same checksum algorithm used by UDP, it is unlikley that RDT will ever encounter an incorrect checksum. This makes the use of a checksum in RDT mostly redundant. However the inclusion of a checksum provided some utility. Firstly, it helped to catch several errors in the initial implementation of RDT, and secondly it provided a useful. opportunity to understand the function of the Internet Checksum.
 
-The inclusion of adaptive RTO was more useful however. G
+The inclusion of adaptive RTO was more useful however. From our analysis in Section \ref{sec:performance}, we concluded that the amount of retransmission required has the biggest impact on RDT performance. Whilst RDT do anything to minimise packet, it is able to control the number of retransmissions due to RTO via the adaptive RTO mechanism. Using the adaptive RTOs, RDT can account for varying amounts of network delay. Therefore we can say that adaptive RTO has had a positive impact on the efficiency and performance RDT in scenarios where network delay is present.
 
 \subsection{Further Extension}
 
