@@ -22,7 +22,7 @@ RdtSocket_t*      G_socket;                     // Global socket for connections
 RdtPacket_t*      received;                     // Received packet. Set by SIGIO handler.
 RdtPacket_t*      G_packet;                     // Outbound packet.
 
-struct timespec   G_timestamp;                  // Timestamp used for calculating RTT for variable retransmission.
+struct timespec   G_timestamp;                  // Timestamp used for calculating RTT for variable re-transmission.
 
 uint32_t          G_seq_init;                   // Initial sequence number.
 uint32_t          G_seq_no;                     // Current sequence number.
