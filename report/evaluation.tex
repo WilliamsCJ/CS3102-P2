@@ -1,9 +1,21 @@
 \section{Evaluation}
+\subsection{Idle-RQ vs Continous-RQ}
+The main weakness of RDT is its Idle-RQ mechanism. This leads to severe underutilisation of the data link, only approximately 9\%. This is the inherent trade-off of the simple operation of Idle-RQ. Implementing Continuous-RQ with Go-Back-N would help to achieve higher link utilisation. 
+
+However in doing so, transmission rate becomes an issue. It is likely that full link utilisation may not be achievable if testing with \code{slurpe-3} due limitations on the size of its internal queue. Resultingly, the choice of $N$ for Go-Back-N would require careful consideration. 
+
+While link utilisation would improve, RDT with Go-Back-N would still be disproportionally impacted by dropped packets and the performance impact of retransmission. Therefore, Selective Retransmission may yield better results.
+
+\subsection{Vulnerabilities}
+As with TCP, RDT provides no security mechanicsms. As such, there are several vulnerabilities that may exist within RDT. 
+Firstly, RDT is vulnerable Denial-Of-Service attacks via mechanisms such as \code{SYN} flooding.
+Secondly, the generation of Initial Sequence Numbers is psuedo-random and thus making ISM generation potentially predicable. 
+
 \subsection{Extension Features}
 
-Given that RDT is implemented using UDP and uses the same checksum algorithm used by UDP, it is unlikley that RDT will ever encounter an incorrect checksum. This makes the use of a checksum in RDT mostly redundant. However the inclusion of a checksum provided some utility. Firstly, it helped to catch several errors in the initial implementation of RDT, and secondly it provided a useful. opportunity to understand the function of the Internet Checksum.
+Given that RDT is implemented using UDP and uses the same checksum algorithm used by UDP, it is unlikley that RDT will ever encounter an incorrect checksum. This makes the use of a checksum in RDT mostly redundant. However the inclusion of a checksum provided some utility. Firstly, it helped to catch several errors in the initial implementation of RDT during development, and secondly it provided a useful. opportunity to understand the function of the Internet Checksum \cite{rfc1071}.
 
-The inclusion of adaptive RTO was more useful however. From our analysis in Section \ref{sec:performance}, we concluded that the amount of retransmission required has the biggest impact on RDT performance. Whilst RDT do anything to minimise packet, it is able to control the number of retransmissions due to RTO via the adaptive RTO mechanism. Using the adaptive RTOs, RDT can account for varying amounts of network delay. Therefore we can say that adaptive RTO has had a positive impact on the efficiency and performance RDT in scenarios where network delay is present.
+The inclusion of adaptive RTO was more useful however. From our analysis in Section \ref{sec:performance}, we concluded that the amount of retransmission required has the biggest impact on RDT performance. Whilst RDT cannot do anything to minimise packet loss, it is able to control the number of retransmissions due to RTO via the adaptive RTO mechanism. Using the adaptive RTOs, RDT can account for varying amounts of network delay. Therefore we can say that adaptive RTO has had a positive impact on the efficiency and performance RDT in scenarios where network delay is present.
 
 \subsection{Further Extension}
 
@@ -11,4 +23,4 @@ While the implementation of bi-directional communication and Continuous-RQ was n
 
 In it's current design, RDT would be unable to support simulatenous bi-directional communication, due to its use of a two-way handshake. For bi-directional communication to occur, both parties are required to choose and synchronise an 'Initial Sequence Number', which is not possible with only a two-way handshake. Therefore, to support bi-directional communication RDT would require a significant re-design.
 
-However, RDT would not require a fundamental re-design to support Continous-RQ. Continous-RQ with Go-Back-N would solve RDT's fundamental issue of low transmission rate due to link under-utilisation (see \textbf{section}).
+However, RDT would not require a fundamental re-design to support Continous-RQ. Continous-RQ would solve RDT's fundamental issue of low transmission rate due to link under-utilisation (see Section~\ref{sec:link).

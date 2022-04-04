@@ -53,7 +53,7 @@ RDT uses an Idle-RQ mechanism for sending data segments, and will wait for ackno
 For the handshake, a random sequence number is chosen to prevent `old' or `stale' packets from causing errors, and to reduce predictability that could be exploited. The method for generating initial sequence numbers is pseudo-random and not cryptograhically secure. 
 
 \subsection{Adaptive RTO}\label{sec:RTO}
-As an extension, adaptive re-transmission timeouts using measured RTT has been implemented. RDT's adaptive RDT is modelled on TCP's Retranmission Timer~\cite{rfc6298}~\endnote{Clock granularity is not considered, however RTO values are calculated in microseconds and the School Lab PCs have a granularity of 1 nanosecond.}, with the same initial RTO of 1s and maximum of 60s.
+As an extension, adaptive re-transmission timeouts using measured RTT has been implemented. RDT's adaptive RDT is modelled on TCP's Retranmission Timer~\cite{rfc6298}\textsuperscript{1}, with the same initial RTO of 1s and maximum of 60s.
 
 \begin{figure}[H]
 \begin{center}
