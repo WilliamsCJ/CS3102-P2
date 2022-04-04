@@ -4,17 +4,19 @@ To test and verify the correct operation of RDT, two test programs \code{RdtClie
 
 \subsection{Methodology}
 
-To test that RDT packets were delivered reliably and in-order, a sufficiently large JPEG file (\emph{dog.jpg}) was used as test file. This provided visible feedback as to the integrity of the data received by \code{RdtServer}. This integrity was also verified by calculating SHA1 checksums of both the sent and received files. \code{slurpe-3} was used to provide an emulated path with loss, delay and restricted data rate to test the reliability of RDT in degraded network conditions.
+To test that RDT packets were delivered reliably and in-order, a 230KB JPEG file (\emph{dog.jpg}\endnote{The image was obtained under a royalty-free licence. Credit: Chayathon Wong Getty Images}) was used as test file. This provided visible feedback as to the integrity of the data received by \code{RdtServer.c}. This integrity was also verified by calculating SHA1 checksums of both the sent and received files. \code{slurpe-3} was used to provide an emulated path with loss, delay and restricted data rate to test the reliability of RDT in degraded network conditions.
+
+To collect RTT data for analysing the performance of RDT, two test programs \code{RdtClientRTT.c} and \code{RdtServerRTT.c} were created. These programs performed 10 rounds of transferring the same 230 KB file, to calculate a sample of 10 average RTT values. This was performed without slurpe-3 to give a true characterisation of performance. These results are included in \code{data/rtt-results.csv}.
 
 \subsection{Results}
 
-From the results in Table \ref{tab:results} and Appendix \ref{testing-screenshots} we can see the RDT performed as expected in a variety of degraded network conditions. 
+From the results in Table~\ref{tab:results} and Appendix~\ref{testing-screenshots} we can see the RDT performed as expected in a variety of degraded network conditions. 
 
 \begin{center}
     \begin{table}[H]
     \begin{tabular}{|c|c|c|c|c|}
         \hline
-        Scenario & In file & Out File & Match & Time \\
+        Scenario & In File & Out File & Match & Time \\
         \hline
         Control & \emph{dog.jpg} & \emph{dog-control.jpg} & \checkmark  & 0.002336s \\
 
