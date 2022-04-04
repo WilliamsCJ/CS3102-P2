@@ -6,7 +6,14 @@ To run RdtClient from the `code` directory;
 
 ```shell
 make RdtClient
-./RdtClient 
+./RdtClient <hostname of server/slurpe> <file to send>
+```
+
+To run RdtServer from the `code` directory:
+
+```shell
+make RdtServer
+./RdtServer <file to output received data to>
 ```
 
 ## Files:
