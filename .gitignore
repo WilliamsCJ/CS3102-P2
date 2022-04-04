@@ -58,6 +58,10 @@ dkms.conf
 **/*.log
 **/*.synctex.gz
 **/*.toc
+**/*.bbl
+**/*.blg
+**/*.ent
+**/~$*
 
 # Miscellaneous
 .idea/
