@@ -51,7 +51,6 @@ void setupSIGALRM(void(*handler)(int)) {
   G_sigalrm.sa_handler = handler;
   G_sigalrm.sa_flags = 0;
 
-  /* TODO: Change error handling */
   if (sigaction(SIGALRM, &G_sigalrm, (struct sigaction *) 0) < 0) {
     perror("setupSIGALRM(): sigaction() problem");
     exit(0);

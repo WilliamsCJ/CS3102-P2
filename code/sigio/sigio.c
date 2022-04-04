@@ -9,7 +9,7 @@
 
 #include "sigio.h"
 
-void perror(const char *s); // TODO: Do we need this?
+void perror(const char *s);
 
 /* signal action / handler hook */
 struct sigaction G_sigio;
