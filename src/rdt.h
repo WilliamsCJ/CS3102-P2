@@ -58,9 +58,7 @@ typedef struct RdtSocket_s {
 /* STRUCTS END */
 
 
-// TODO Docstrings
 /* FUNCTIONS START */
-RdtSocket_t* openRdtSocket(const char* hostname, const uint16_t port);
 RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port);
 void closeRdtSocket_t(RdtSocket_t* socket);
 void rdtSend(RdtSocket_t* socket, const void* buf, uint32_t n);

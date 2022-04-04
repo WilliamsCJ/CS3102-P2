@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
     G_debug = true;
   }
 
-  RdtSocket_t* socket = openRdtSocket(argv[1], getuid());
+  RdtSocket_t* socket = setupRdtSocket_t(argv[1], getuid());
   if (socket < 0 ) {
     printf("Couldn't open socket.\n");
     return -1;
@@ -51,8 +51,8 @@ int main(int argc, char* argv[]) {
 
   if (argc == 4 && strcmp(argv[3], "time") == 0) {
     if (clock_gettime(CLOCK_REALTIME, &start) < 0) {
-      printf("Error starting timer.\n")
-      return -1.
+      printf("Error starting timer.\n");
+      return -1;
     }
   }
 
@@ -61,8 +61,8 @@ int main(int argc, char* argv[]) {
 
   if (argc == 4 && strcmp(argv[3], "time") == 0) {
     if (clock_gettime(CLOCK_REALTIME, &end) < 0) {
-      printf("Error starting timer.\n")
-      return -1.
+      printf("Error starting timer.\n");
+      return -1;
     }
 
     double time = (double) end.tv_sec - (double) end.tv_sec;

@@ -52,21 +52,50 @@ int rdtTypeToRdtEvent(RDTPacketType_t type);
 
 /* API START */
 /**
- * Opens an RDT socket.
- * @param hostname The hostname to open the socket to.
- * @param port The port to open the socket on.
+ * Sets up and opens UDP sockets to support RDT.
+ * @param hostname The name of the host to open socket to.
+ * @param port The port to open socket on.
  * @return Pointer to RdtSocket_t.
  */
-RdtSocket_t* openRdtSocket(const char* hostname, const uint16_t port) {
-  printf("Opening socket to %s:%d... ", hostname, port);
-  RdtSocket_t* socket = setupRdtSocket_t(hostname, port);
-  if (socket < 0) {
-    return socket;
+RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port) {
+  RdtSocket_t* socket = (RdtSocket_t*) calloc(1, sizeof(RdtSocket_t));
+  int error = 0;
+
+  /* setup local UDP socket */
+  socket->local = setupUdpSocket_t((char *) 0, port);
+  if (socket->local == (UdpSocket_t *) 0) {
+    errno = ENOTCONN;
+    perror("Couldn't setup local UDP socket");
+    error = 1;
   }
 
+  /* open local UDP socket */
+  if (openUdp(socket->local) < 0) {
+    errno = ENOTCONN;
+    perror("Couldn't open UDP socket");
+    error = 1;
+  }
 
-  printf("Done!\n");
+  if (hostname == NULL) {
+      printf("Opening socket on port %d...\n", port);
+  } else {
+    printf("Opening socket to %s:%d...\n", hostname, port);
+  }
 
+  /* setup remote UDP socket */
+  socket->remote = setupUdpSocket_t(hostname, port);
+  if (socket->remote == (UdpSocket_t *) 0) {
+    errno = ENOTCONN;
+    perror("Couldn't setup remote UDP socket");
+    error = 1;
+  }
+
+  if (error) {
+    free(socket);
+    socket = (RdtSocket_t *) -1;
+  }
+
+  printf("Ready!\n");
   return socket;
 }
 
@@ -95,7 +124,6 @@ void rdtSend(RdtSocket_t* socket, const void* buf, uint32_t n) {
   printf("Sending %d bytes...\n", n);
   fsm(RDT_INPUT_SEND);
 
-  // TODO: Check that the buffer has been completely sent
   while(G_state != RDT_STATE_ESTABLISHED && G_state != RDT_STATE_CLOSED) {
     (void) pause(); // Wait for signal
   }
@@ -116,14 +144,42 @@ void rdtListen(RdtSocket_t* socket) {
   setupSIGIO(G_socket->local->sd, handleSIGIO);
   setupSIGALRM(handleSIGALRM);
 
-  printf("Listening on port %d...\n", socket->local->addr.sin_port);
-  // TODO: FSM
+  printf("Listening on port %d...\n", ntohs(socket->local->addr.sin_port));
 
   while(G_state != RDT_STATE_CLOSED) {
     (void) pause(); // Wait for signal
   }
 }
+
+/**
+ * Cleans up and closes the underlying UDP sockets.
+ * @param socket The socket to close.
+ */
+void closeRdtSocket_t(RdtSocket_t* socket) {
+  closeUdp(socket->local);
+  closeUdp(socket->remote);
+  free(socket);
+}
 /* API END */
+
+
+/* SOCKETS START */
+/**
+ * Sets remote socket to hostname supplied. Allows accepting SYN initially, then setting remote hostname to whoever we
+ * received SYN from
+ * @param hostname
+ * @return int 0 if success, -1 if failure.
+ */
+int setRemoteSocket(char* hostname) {
+  G_socket->remote = setupUdpSocket_t(hostname, ntohs(G_socket->receive.addr.sin_port));
+  if (G_socket->remote == (UdpSocket_t *) 0) {
+    errno = ENOTCONN;
+    perror("Couldn't setup remote UDP socket\n");
+    return -1;
+  }
+
+  return 0;
+}
 
 
 /* CONNECTION MANAGEMENT START */
@@ -157,57 +213,6 @@ void rdtClose() {
   }
 }
 /* CONNECTION MANAGEMENT CLOSE */
-
-
-/* SOCKETS START */
-/**
- * Sets up and opens UDP sockets to support RDT.
- * @param hostname The name of the host to open socket to.
- * @param port The port to open socket on.
- * @return Pointer to RdtSocket_t.
- */
-RdtSocket_t* setupRdtSocket_t(const char* hostname, const uint16_t port) {
-  RdtSocket_t* socket = (RdtSocket_t*) calloc(1, sizeof(RdtSocket_t));
-  int error = 0;
-
-  /* setup local UDP socket */
-  socket->local = setupUdpSocket_t((char *) 0, port);
-  if (socket->local == (UdpSocket_t *) 0) {
-    perror("Couldn't setup local UDP socket");
-    error = 1;
-  }
-
-  /* setup remote UDP socket */
-  socket->remote = setupUdpSocket_t(hostname, port);
-  if (socket->remote == (UdpSocket_t *) 0) {
-    perror("Couldn't setup remote UDP socket");
-    error = 1;
-  }
-
-  /* open local UDP socket */
-  if (openUdp(socket->local) < 0) {
-    perror("Couldn't open UDP socket");
-    error = 1;
-  }
-
-  if (error) {
-    free(socket);
-    socket = (RdtSocket_t *) -1;
-  }
-
-  return socket;
-}
-
-/**
- * Cleans up and closes the underlying UDP sockets.
- * @param socket The socket to close.
- */
-void closeRdtSocket_t(RdtSocket_t* socket) {
-  closeUdp(socket->local);
-  closeUdp(socket->remote);
-  free(socket);
-}
-/* SOCKETS END */
 
 
 /* PACKETS START */
@@ -433,6 +438,14 @@ void fsm(int input) {
           G_seq_init = received->header.sequence;
           G_seq_no = G_seq_init;
 
+          /* Set remote socket to host that we've received SYN from */
+          printf("Receiving bytes from %s...\n", inet_ntoa(G_socket->receive.addr.sin_addr));
+          if (setRemoteSocket(inet_ntoa(G_socket->receive.addr.sin_addr)) < 0) {
+            errno = ECONNABORTED;
+            perror("Couldn't set up remote socket. Aborting!");
+            exit(-1);
+          }
+
           /* Create and send SYN ACK packet */
           G_packet = createPacket(SYN_ACK, G_seq_init, NULL);
           size = sizeof(RdtHeader_t);
@@ -655,7 +668,6 @@ void fsm(int input) {
           }
 
           /* Set ITIMER for RTO */
-          // TODO: Do properly
           if (setITIMER(RTO_TO_SEC(T_rto), RTO_TO_USEC(T_rto)) != 0) {
             perror("Couldn't set timeout");
           }
@@ -680,6 +692,8 @@ void fsm(int input) {
           G_state = RDT_STATE_CLOSED;
           output = RDT_ACTION_SND_FIN_ACK;
           free(G_packet);
+          setRemoteSocket(NULL);
+          printf("Done!\n");
           break;
         }
 
@@ -709,7 +723,6 @@ void fsm(int input) {
               G_seq_no = received->header.sequence;
             }
 
-            // TODO: Check it's not less
             G_retries = 0;
             goto send;
           }
@@ -843,7 +856,7 @@ int rdtTypeToRdtEvent(RDTPacketType_t type) {
  */
 void printProgress(int input) {
   if (G_sender && G_state == RDT_STATE_DATA_SENT && input == RDT_EVENT_RCV_ACK && !G_debug) {
-    double progress = (double) (((double) G_seq_no / (double) G_buf_size)) * 100.0;
+    double progress = (double) (((double) (G_seq_no - G_seq_init) / (double) G_buf_size)) * 100.0;
     if (progress > 0.0) {
       printf("\b\b\b\b\b\b\b\b");
     }
