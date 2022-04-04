@@ -1,1 +1,5 @@
 \section{Conclusion}
+
+As demonstrated in this report RDT provides reliable, ordered, uni-directional data transfer on top of UDP. RDT provides reliable  performance in heavily degraded network environments. However in its current implementation RDT is extrememly inefficient due to its Idle-RQ transmission mechanicsm. RDT performance suffers particularly when there is heavy packet loss that causes retransmission. This efficiency could have been addressed, if given more time, by replacing Idle-RQ with Continuous-RQ with Go-Back-N.
+
+Overall this practical provided an interesting opportunity to design and implement a protocol and analyse protocol performance.

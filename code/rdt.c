@@ -27,6 +27,7 @@ struct timespec   G_timestamp;                  // Timestamp used for calculatin
 uint32_t          G_seq_init;                   // Initial sequence number.
 uint32_t          G_seq_no;                     // Current sequence number.
 uint32_t          G_rtt;                        // RTT for last segment in microseconds (us).
+
 uint8_t*          G_buf;                        // Data buffer for sending or receiving.
 uint32_t          G_buf_size;                   // Size of buf.
 uint32_t          G_rcv_bytes;                  // Number of bytes received.
@@ -38,6 +39,9 @@ int               G_retries = 0;                // Global retries counter.
 int               G_state   = RDT_STATE_CLOSED; // Global FSM state.
 bool              G_debug   = false;            // Debug output flag.
 bool              G_sender  = false;            // Whether in send or receive mode.
+
+uint32_t          G_avg_rtt     = 1;            // Average RTT.
+uint32_t          G_rtt_counter = 0;            // Number of times RTT average has been calculated.
 /* GLOBAL VARIABLES END */
 
 
@@ -715,6 +719,7 @@ void fsm(int input) {
         case RDT_EVENT_RCV_ACK: {
           /* Calculate the RTT in microseconds */
           G_rtt = calculateRTT(&G_timestamp);
+
 
           /* Calculate next RTO */
           calculateRTO(G_rtt);

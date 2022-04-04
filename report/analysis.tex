@@ -1,12 +1,23 @@
 \section{Analysis}
 
+\subsection{Performance in Different Network Scenarios}
+
+\begin{figure}[H]
+\begin{center}
+    \includegraphics[width=100mm]{images/performance-network-scenarios.png}
+\end{center}
+\caption{Total Transmission Time in Different Network Scenarios for 230 Kb file.}
+\end{figure}
+
 \begin{itemize}
-    \item Size of header vs size of packet
     \item Bandwidth utilization
 \end{itemize}
 
 \subsection{RDT Packet Data Size}
 
-Several experiments were carried out to measure the effect of varying the RDT packet size. 
 
-The maximum packet size supported by UDP datagrams is 65,507 for IPv4 (this analysis will not consider IPv6), therefore given a fixed header size of 
+\subsection{Wastage due to Control Information}
+
+\begin{align*}
+    \rho = \frac{i - c}{i + a} = \frac{1312 - 12}{1312 + 12} = 0.982 \text{\:(3 s.f.)}
+\end{align*}
