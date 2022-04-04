@@ -494,6 +494,8 @@ void fsm(int input) {
         case RDT_EVENT_RCV_SYN_ACK: {
           G_state = RDT_STATE_ESTABLISHED;
           T_rto = 0;
+          G_avg_rtt = 0;
+          G_rtt_counter = 0;
           break;
         }
 
@@ -720,7 +722,9 @@ void fsm(int input) {
 
           /* Calculate averate RTT */
           if (G_rtt_counter > 0) {
-            G_avg_rtt = (double) (G_rtt + (G_avg_rtt * G_rtt_counter)) / ++G_rtt_counter);
+            double temp = G_rtt + (G_avg_rtt * G_rtt_counter);
+            G_rtt_counter++;
+            G_avg_rtt = (double) (temp / G_rtt_counter);
           } else {
             G_avg_rtt = (double) G_rtt;
             G_rtt_counter = 1;

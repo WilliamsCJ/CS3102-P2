@@ -21,10 +21,10 @@ RdtServer: RdtServer.o $(LIB)
 RdtClient: RdtClient.o $(LIB)
 	$(CC) -o $@ $+
 
-RdtClientRTT.o: RdtClient.c
+RdtClientRTT.o: RdtClientRTT.c
 	$(CC) -c ./RdtClientRTT.c
 
-RdtServerRTT.o: RdtServer.c
+RdtServerRTT.o: RdtServerRTT.c
 	$(CC) -c ./RdtServerRTT.c
 
 RdtClient.o: RdtClient.c

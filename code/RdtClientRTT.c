@@ -28,8 +28,8 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  G_fp = fopen(filename, "w");
-  d_advise(G_fp, "Attempt,Avg. RTT\n");
+  out = fopen("rtt-results.csv", "w");
+  d_advise(out, "Attempt,Avg. RTT\n");
 
   RdtSocket_t* socket = setupRdtSocket_t(argv[1], getuid());
   if (socket < 0 ) {
@@ -56,19 +56,14 @@ int main(int argc, char* argv[]) {
   fread(buf, sizeof(char), n, file);
   fclose(file);
 
-  if (argc == 4 && strcmp(argv[3], "time") == 0) {
-    if (clock_gettime(CLOCK_REALTIME, &start) < 0) {
-      printf("Error starting timer.\n");
-      return -1;
-    }
-  }
-
   while(counter < max) {
     /* Send data over RDT */
     rdtSend(socket, buf, n);
-    d_advise(G_fp, "%d,%lf\n", counter + 1, rtt);
-    counter++
+    d_advise(out, "%d,%lf\n", counter + 1, G_avg_rtt);
+    counter++;
   }
+
+  fclose(out);
 
   /* Clean up and return */
   closeRdtSocket_t(socket);

@@ -32,6 +32,7 @@ int main(int argc, char* argv[]) {
     printf("Round %d:\n", counter + 1);
     rdtListen(socket);
     printf("Received %d bytes.\n", (G_seq_no - G_seq_init));
+    counter++;
   }
 
   closeRdtSocket_t(socket);
